@@ -1,3 +1,15 @@
+# libreoffice files
+.~lock.*
+*.ods
+*.odt
+*.xlsx
+*.docx
+
+# SPSS files
+*.sps
+*.SAV
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
