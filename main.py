@@ -10,7 +10,7 @@ class Logit(object):
     """ Basic non-generic variable Logit class """
     def __init__(self, input, n_in, n_out, av):
         # initialize weights W of shape (m,)
-        self.W = shared(value=np.random.uniform(-1,1, n_in).astype(theano.config.floatX), name='W', borrow=True)
+        self.W = shared(value=np.zeros(n_in, dtype=theano.config.floatX), name='W', borrow=True)
 
         # initialize bias c of shape (i,) (Alternative specific constants)
         self.c = shared(value=np.zeros(n_out, dtype=theano.config.floatX), name='c', borrow=True)
@@ -52,7 +52,7 @@ def main():
     # hyperparameters
     batch_size = n
     n_batches = 1
-    n_epochs = 500
+    n_epochs = 5000
 
     # generate symbolic variables for input and output
     x = T.tensor3('x')
@@ -69,7 +69,7 @@ def main():
     # obtaining the gradients wrt to the loss function
     g_W = T.grad(cost=cost, wrt=logit.W)
     g_c = T.grad(cost=cost, wrt=logit.c)
-    lr = 0.13
+    lr = 0.2
 
     updates = [(logit.W, logit.W-lr*g_W),
                (logit.c, logit.c-lr*g_c)]
@@ -100,12 +100,27 @@ def main():
         }
     )
 
+    loglikelihood = theano.function(
+        inputs=[],
+        outputs=T.sum(T.log(logit.p_y_given_x)[T.arange(y.shape[0]), y]),
+        updates=None,
+        on_unused_input='ignore',
+        givens={
+            x: dataset_x,
+            y: dataset_y,
+            av: dataset_av
+        }
+    )
+
     ##################
     # ESTIMATE MODEL #
     ##################
 
     best_loss = np.inf
     epoch = 0
+
+    #calculate init loglikelihood
+    nullLoglikelihood = loglikelihood()
     while epoch < n_epochs:
         epoch += 1
         for minibatch_index in range(n_batches):
@@ -115,14 +130,18 @@ def main():
             print('W=', logit.W.get_value(borrow=True))
             print('c=', logit.c.get_value(borrow=True))
 
+    # calculate final loglikelihood
+    finalLoglikelihood = loglikelihood()
+    print('nullLoglikelihood=', nullLoglikelihood, 'finalLoglikelihood=', finalLoglikelihood)
     print('... solving Hessians')
-    serr = np.hstack([np.sqrt(np.diagonal(mat)) for mat in hessian(0)])
+    serr = np.hstack([2/np.sqrt(n*np.diagonal(mat)) for mat in hessian(0)])
     print(serr)
 
     param_names = ['cost', 'tt', 'relib', 'ASC_bus', 'ASC_CarRental', 'ASC_Car', 'ASC_Plane', 'ASC_TrH', 'ASC_Train']
     betas = np.concatenate((logit.W.get_value(borrow=True), logit.c.get_value(borrow=True)), axis=0)
     t_stat = betas/serr
     df = pd.DataFrame(data=np.vstack((betas,t_stat)).T, index=param_names, columns=['betas', 't_stat'])
+    # df.to_csv('mnl_estimation.csv')
     print(df)
 
 if __name__ == '__main__':
