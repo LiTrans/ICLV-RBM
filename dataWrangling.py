@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-def main():
+def dataWrangling():
 	## load US_SP_Restructed.csv ##
 	df = pd.read_csv('US_SP_Restructured.csv')
 	df['index'] = df.index
@@ -49,13 +49,22 @@ def main():
 	data['tt'] = tt['tt']
 	data['relib'] = relib['reliability']
 
-	# reorder columns and reset index
+	# reorder columns, reset index and change NaN -> 0
+	data = data.fillna(0)
 	data = data[['quest', 'index', 'choice', 'cost', 'tt', 'relib']].reset_index(drop=True)
 
-	print(data.head(10))
+	# check if everything is in order
+	print(data.head(6))
 
 	# reshape data to numpy array
-	ndarray = data.values.reshape(df.shape[0], 6, -1) # shape:(n,i,m)
+	dataset_x = data[['cost', 'tt', 'relib']].values.reshape(df.shape[0], 6, -1) # shape:(n,i,m) (1788, 6, 3)
+	dataset_y = choice_data[['New_SP_Choice']]
+
+	# check if everything is in order
+	print(dataset_x.shape, dataset_y.shape)
+
+	# return arrays
+	return dataset_x, dataset_y
 
 if __name__ == '__main__':
-	main()
+	dataWrangling()
