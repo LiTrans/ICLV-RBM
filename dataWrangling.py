@@ -57,15 +57,16 @@ def dataWrangling():
 	print(data.head(6))
 
 	# reshape data to numpy array
-	dataset_x = data[['cost', 'tt', 'relib']].values.reshape(df.shape[0], 6, -1)/100 # shape:(n,i,m) (1788, 6, 3)
+	dataset_x_ng = data[['cost', 'tt', 'relib']].values.reshape(df.shape[0], 6, -1)/100 # shape:(n,i,m) (1788, 6, 3)
+	dataset_x_g = rp_data[['DrvLicens', 'PblcTrst', 'Ag1825', 'Ag2545', 'Ag4565', 'Ag65M']].values.reshape(df.shape[0], -1)  # shape: (n, m) (1788, 2)
 	dataset_y = choice_data[['New_SP_Choice']].values.reshape(df.shape[0],) 	 # shape:(n,) (1788,)
 	dataset_availability = availability[['AV_Bus', 'AV_CarRental', 'AV_Car', 'AV_Plane', 'AV_TrH', 'AV_Train']]
 
 	# check if everything is in order
-	print(dataset_x.shape, dataset_y.shape)
+	print(dataset_x_ng.shape, dataset_x_g.shape, dataset_y.shape)
 
 	# return arrays
-	return dataset_x, dataset_y, dataset_availability
+	return dataset_x_ng, dataset_x_g, dataset_y, dataset_availability
 
 if __name__ == '__main__':
 	dataWrangling()
