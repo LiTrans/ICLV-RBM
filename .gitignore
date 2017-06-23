@@ -9,6 +9,16 @@
 *.sps
 *.SAV
 
+# BIOGEME files
+__parametersUsed.py
+__bin_*
+*.tex
+*_param.py
+headers.py
+hess.lis
+hessian.lis
+pythonparam.html
+sample
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
