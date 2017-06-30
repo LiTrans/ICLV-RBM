@@ -9,6 +9,7 @@
 from biogeme import *
 from headers import *
 from loglikelihood import *
+from distributions import *
 from statistics import *
 
 import numpy as np
@@ -22,6 +23,20 @@ import numpy as np
 #   - 5  0: estimate the parameter, 1: keep it fixed.
 #
 
+# generic variables
+gen_vars = np.asarray([DrvLicens, PblcTrst])#, Ag1825, Ag2545, Ag4565, Ag65M, Male, Fulltime, PrtTime, Unemplyd, Edu_Highschl, Edu_BSc, Edu_MscPhD])
+
+# alternative specific variables
+bus = [Bus_Cost/100., Bus_TT/100., BusRelib/100.]
+carrental = [CarRental_Cost/100., CarRental_TT/100., CarRentalRelib/100.]
+car = [Car_Cost/100., Car_TT/100., CarRelib/100.]
+plane = [Plane_Cost/100., Plane_TT/100., PlaneRelib/100.]
+trh = [TrH_Cost/100., TrH_TT/100., TrHRelib/100.]
+train = [Train_Cost/100., Train_TT/100., TrainRelib/100.]
+
+altspec_vars = np.asarray([bus, carrental, car, plane, trh, train])
+
+# choic labels
 labels = np.asarray(['_BUS', '_CARRENTAL', '_CAR', '_PLANE', '_TRH', '_TRAIN'])
 
 # alternative specific parameters
@@ -53,39 +68,72 @@ B_PBLCTRST = [Beta('B_PBLCTRST'+str(label),0,-10,10,np.floor(i/5).astype(np.int)
 #
 # B_EDU_MSCPHD = [Beta('B_EDU_MSCPHD'+str(label),0,-10,10,np.floor(i/5).astype(np.int),'B_EDU_MSCPHD'+str(label)) for i, label in enumerate(labels)]
 
+# latent variables
+COEF_DRVLICENS = Beta('COEF_DRVLICENS',0,-10,10,0)
+COEF_PBLCTRST = Beta('COEF_PBLCTRST',0,-10,10,0)
+
+latent_params = np.asarray([COEF_DRVLICENS, COEF_PBLCTRST])
+
+omega = RandomVariable('omega')
+density = normalpdf(omega)
+sigma_s = Beta('sigma_s',1,-10,10,0)
+
+latentVariable = np.dot(latent_params, gen_vars) + sigma_s * omega
+
+## Measurement equations
+INTER_SAFETYBUS = Beta('INTER_SAFETYBUS',0,-10,10,1)
+INTER_SAFETYCAR = Beta('INTER_SAFETYCAR',0,-10,10,0)
+INTER_SAFETYPLANE = Beta('INTER_SAFETYPLANE',0,-10,10,0)
+INTER_SAFETYTRAIN = Beta('INTER_SAFETYTRAIN',0,-10,10,0)
+
+B_SAFETYBUS = Beta('B_SAFETYBUS',-1,-10,10,1)
+B_SAFETYCAR = Beta('B_SAFETYCAR',0,-10,10,0)
+B_SAFETYPLANE = Beta('B_SAFETYPLANE',0,-10,10,0)
+B_SAFETYTRAIN = Beta('B_SAFETYTRAIN',0,-10,10,0)
+
+MODEL_SAFETYBUS = INTER_SAFETYBUS + B_SAFETYBUS * latentVariable
+MODEL_SAFETYCAR = INTER_SAFETYCAR + B_SAFETYCAR * latentVariable
+MODEL_SAFETYPLANE = INTER_SAFETYPLANE + B_SAFETYPLANE * latentVariable
+MODEL_SAFETYTRAIN = INTER_SAFETYTRAIN + B_SAFETYTRAIN * latentVariable
+
+IND_SAFETYBUS = {0:1, 1:bioNormalCdf(MODEL_SAFETYBUS)}
+P_SAFETYBUS = Elem(IND_SAFETYBUS, Safe_Bus)
+
+IND_SAFETYCAR = {0:1, 1:bioNormalCdf(MODEL_SAFETYCAR)}
+P_SAFETYCAR = Elem(IND_SAFETYCAR, Safe_Car)
+
+IND_SAFETYPLANE = {0:1, 1:bioNormalCdf(MODEL_SAFETYPLANE)}
+P_SAFETYPLANE = Elem(IND_SAFETYPLANE, Safe_Plane)
+
+IND_SAFETYTRAIN = {0:1, 1:bioNormalCdf(MODEL_SAFETYTRAIN)}
+P_SAFETYTRAIN = Elem(IND_SAFETYTRAIN, Safe_Train)
 
 # generic parameters
 B_COST = Beta('B_COST',0,-10,10,0,'B_COST')
 B_TIME = Beta('B_TIME',0,-10,10,0,'B_TIME')
 B_RELI = Beta('B_RELI',0,-10,10,0,'B_RELI')
-B_COST_S = Beta('B_COST_S',0,-10,10,0,'B_COST_S')
-B_TIME_S = Beta('B_TIME_S',0,-10,10,0,'B_TIME_S')
-B_RELI_S = Beta('B_RELI_S',0,-10,10,0,'B_RELI_S')
+# B_COST_S = Beta('B_COST_S',0,-10,10,0,'B_COST_S')
+# B_TIME_S = Beta('B_TIME_S',0,-10,10,0,'B_TIME_S')
+# B_RELI_S = Beta('B_RELI_S',0,-10,10,0,'B_RELI_S')
 
-BIOGEME_OBJECT.DRAWS = {
-    'B_COST_RND': 'NORMAL',
-    'B_TIME_RND': 'NORMAL',
-    'B_RELI_RND': 'NORMAL'}
+# BIOGEME_OBJECT.DRAWS = {
+#     'B_COST_RND': 'NORMAL',
+#     'B_TIME_RND': 'NORMAL',
+#     'B_RELI_RND': 'NORMAL'}
 
-B_COST_RND = B_COST + B_COST_S * bioDraws('B_COST_RND')
-B_TIME_RND = B_TIME + B_TIME_S * bioDraws('B_TIME_RND')
-B_RELI_RND = B_RELI + B_RELI_S * bioDraws('B_RELI_RND')
+# B_COST_RND = B_COST + B_COST_S * bioDraws('B_COST_RND')
+# B_TIME_RND = B_TIME + B_TIME_S * bioDraws('B_TIME_RND')
+# B_RELI_RND = B_RELI + B_RELI_S * bioDraws('B_RELI_RND')
 
 altspec_params = np.asarray([B_DRVLICENS, B_PBLCTRST])#, B_AG1825, B_AG2545, B_AG4565, B_AG65M, B_MALE, B_FULLTIME, B_PRTTIME, B_UNEMPLYD, B_EDU_HIGHSCHL, B_EDU_BSC, B_EDU_MSCPHD])
+
 gen_params = np.asarray([B_COST, B_TIME, B_RELI])
 
-# generic variables
-gen_vars = np.asarray([DrvLicens, PblcTrst])#, Ag1825, Ag2545, Ag4565, Ag65M, Male, Fulltime, PrtTime, Unemplyd, Edu_Highschl, Edu_BSc, Edu_MscPhD])
+# lvChoice parameters
+B_LV = [Beta('B_LV'+str(label),0,-10,10,np.floor(i/5).astype(np.int),'B_LV'+str(label)) for i, label in enumerate(labels)]
 
-# alternative specific variables
-bus = [Bus_Cost/100., Bus_TT/100., BusRelib/100.]
-carrental = [CarRental_Cost/100., CarRental_TT/100., CarRentalRelib/100.]
-car = [Car_Cost/100., Car_TT/100., CarRelib/100.]
-plane = [Plane_Cost/100., Plane_TT/100., PlaneRelib/100.]
-trh = [TrH_Cost/100., TrH_TT/100., TrHRelib/100.]
-train = [Train_Cost/100., Train_TT/100., TrainRelib/100.]
-
-altspec_vars = np.asarray([bus, carrental, car, plane, trh, train])
+lv_vars = np.asarray([latentVariable])
+lvChoice_params = np.asarray([B_LV])
 
 # Utility functions
 # For numerical reasons, it is good practice to scale the data to
@@ -94,12 +142,12 @@ altspec_vars = np.asarray([bus, carrental, car, plane, trh, train])
 # parameters around -0.01 for both cost and time. Therefore, time and
 # cost are multipled by 0.01.
 
-V1 = ASC[0] + np.dot(gen_params, altspec_vars[0]) + np.dot(gen_vars, altspec_params[:,0])
-V2 = ASC[1] + np.dot(gen_params, altspec_vars[1]) + np.dot(gen_vars, altspec_params[:,1])
-V3 = ASC[2] + np.dot(gen_params, altspec_vars[2]) + np.dot(gen_vars, altspec_params[:,2])
-V4 = ASC[3] + np.dot(gen_params, altspec_vars[3]) + np.dot(gen_vars, altspec_params[:,3])
-V5 = ASC[4] + np.dot(gen_params, altspec_vars[4]) + np.dot(gen_vars, altspec_params[:,4])
-V6 = ASC[5] + np.dot(gen_params, altspec_vars[5]) + np.dot(gen_vars, altspec_params[:,5])
+V1 = ASC[0] + np.dot(gen_params, altspec_vars[0]) + np.dot(gen_vars, altspec_params[:,0]) + np.dot(lv_vars, lvChoice_params[:,0])
+V2 = ASC[1] + np.dot(gen_params, altspec_vars[1]) + np.dot(gen_vars, altspec_params[:,1]) + np.dot(lv_vars, lvChoice_params[:,1])
+V3 = ASC[2] + np.dot(gen_params, altspec_vars[2]) + np.dot(gen_vars, altspec_params[:,2]) + np.dot(lv_vars, lvChoice_params[:,2])
+V4 = ASC[3] + np.dot(gen_params, altspec_vars[3]) + np.dot(gen_vars, altspec_params[:,3]) + np.dot(lv_vars, lvChoice_params[:,3])
+V5 = ASC[4] + np.dot(gen_params, altspec_vars[4]) + np.dot(gen_vars, altspec_params[:,4]) + np.dot(lv_vars, lvChoice_params[:,4])
+V6 = ASC[5] + np.dot(gen_params, altspec_vars[5]) + np.dot(gen_vars, altspec_params[:,5]) + np.dot(lv_vars, lvChoice_params[:,5])
 
 # Associate utility functions with the numbering of alternatives
 V = {1: V1, 2: V2, 3: V3, 4: V4, 5: V5, 6: V6}
@@ -113,17 +161,23 @@ av = {1: AV_Bus,
       6: AV_Train}
 
 # The choice model is a logit, with availability conditions
-logprob = bioLogLogit(V, av, New_SP_Choice)
-# Defines an itertor on the data
-rowIterator('obsIter')
-# DEfine the likelihood function for the estimation
-BIOGEME_OBJECT.ESTIMATE = Sum(logprob,'obsIter')
+# logprob = bioLogLogit(V, av, New_SP_Choice)
+# # Defines an itertor on the data
+# rowIterator('obsIter')
+# # DEfine the likelihood function for the estimation
+# BIOGEME_OBJECT.ESTIMATE = Sum(logprob,'obsIter')
 
 # prob = bioLogit(V, av, New_SP_Choice)
 # l = mixedloglikelihood(prob)
 # rowIterator('obsIter')
 # # Likelihood function
 # BIOGEME_OBJECT.ESTIMATE = Sum(l,'obsIter')
+
+condprob = bioLogit(V, av, New_SP_Choice)
+condlike = P_SAFETYBUS*P_SAFETYCAR*P_SAFETYPLANE*P_SAFETYTRAIN*condprob
+loglike = log(Integrate(condlike * density,'omega'))
+rowIterator('obsIter')
+BIOGEME_OBJECT.ESTIMATE = Sum(loglike,'obsIter')
 
 # All observations verifying the following expression will not be
 # considered for estimation
