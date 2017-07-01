@@ -60,7 +60,7 @@ def main():
 
     # calculate the gradients wrt to the loss function
     grads = T.grad(cost=cost, wrt=model.params)
-    optimizer = rmsprop(model.params)
+    optimizer = rmsprop(model.params, model.masks)
     updates = optimizer.updates(model.params, grads, learning_rate, momentum)
 
     # hessian function
