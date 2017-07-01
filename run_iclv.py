@@ -47,6 +47,7 @@ def main():
     sz_k = dataset_x_g.shape[1]  # number of generic variables
     sz_m = dataset_x_ng.shape[2]  # number of non-generic variables
     sz_i = dataset_x_ng.shape[1]  # number of alternatives
+    sz_z = dataset_ind.shape[1]  # number of indicators
 
     sz_minibatch = sz_n  # model hyperparameters
     learning_rate = 1e-3
@@ -64,10 +65,14 @@ def main():
     z = T.matrix('data_ind')
 
     # construct model
-    model = Logistic(
-        sz_i, av, input=[x_ng, x_g], n_in=[(sz_m), (sz_k, sz_i)])
+    model = ICLV(
+        sz_i, av,
+        input=[x_ng, x_g],
+        n_in=[(sz_m,), (sz_k, n_hidden)],
+        n_hid=[(n_hidden,), (n_hidden, sz_z), (n_hidden, sz_i)],
+        n_ind=(sz_z,))
 
-    cost = -model.loglikelihood(y)
+    cost = - model.loglikelihood(y) - model.cross_entropy(y)
 
     # calculate the gradients wrt to the loss function
     grads = T.grad(cost=cost, wrt=model.params)
@@ -185,14 +190,14 @@ def run_analytics(model, hessians):
 
     choices = [
         'Bus', 'CarRental', 'Car', 'Plane', 'TrH', 'Train'
-        ]
+    ]
     ASCs = [
         'ASC_Bus', 'ASC_CarRental', 'ASC_Car', 'ASC_Plane', 'ASC_TrH',
         'ASC_Train'
-        ]
+    ]
     nongenericNames = [
         'cost', 'tt', 'relib',  # 'cost_s', 'tt_s', 'relib_s'
-        ]
+    ]
     genericNames = [
         'DrvLicens', 'PblcTrst',
         # 'Ag1825', 'Ag2545', 'Ag4565', 'Ag65M', 'Male', 'Fulltime',
@@ -214,7 +219,7 @@ def run_analytics(model, hessians):
         # 'Tp_Shpng_max', 'Tp_ActOdr_max',
         # 'Tp_NHotel1_max', 'Tp_NHotel2_max', 'Tp_NHotel3M_max',
         # 'Tp_FreqMonthlMulti_max', 'Tp_FreqYearMulti_max'
-        ]
+    ]
 
     for ASC in ASCs:
         paramNames.append(ASC)

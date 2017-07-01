@@ -47,12 +47,12 @@ def main():
     sz_m = dataset_x_ng.shape[2]  # number of non-generic variables
     sz_i = dataset_x_ng.shape[1]  # number of alternatives
 
-    srng = RandomStreams(1234)  # random draws
-    sz_draw = 1000
+    srng = RandomStreams(1337)  # random draws
+    sz_draw = 50
     rng = srng.normal((sz_n, sz_draw, sz_m))
 
     sz_minibatch = sz_n  # model hyperparameters
-    learning_rate = 1e-3
+    learning_rate = 0.3
     momentum = 0.9
 
     x_ng = T.tensor3('data_x_ng')  # symbolic theano tensors
@@ -72,10 +72,10 @@ def main():
 
     # calculate the gradients wrt to the loss function
     grads = T.grad(cost=cost, wrt=model.params)
-    optimizer = rmsprop(model.params, model.masks)
+    optimizer = adadelta(model.params, model.masks, momentum)
 
     updates = optimizer.updates(
-        model.params, grads, learning_rate, momentum)
+        model.params, grads, learning_rate)
 
     fn_checkdraw = function(
         inputs=[],
@@ -129,10 +129,10 @@ def main():
     print('Begin estimation...')
 
     epoch = 0  # process loop parameters
-    sz_epoches = 2500
-    sz_batches = sz_n // sz_minibatch
+    sz_epoches = 9999
+    sz_batches = np.ceil(sz_n/sz_minibatch).astype(np.int32)
     done_looping = False
-    patience = 100
+    patience = 300
     patience_inc = 10
     best_loglikelihood = -np.inf
     null_Loglikelihood = -fn_null()
@@ -146,7 +146,7 @@ def main():
             epoch_error.append(batch_error)
             epoch_loglikelihood.append(batch_loglikelihood)
 
-        this_loglikelihood = np.mean(epoch_loglikelihood)
+        this_loglikelihood = np.sum(epoch_loglikelihood)
         print('@ iteration %d loglikelihood: %.3f'
               % (epoch, this_loglikelihood))
 
@@ -203,7 +203,7 @@ def run_analytics(model, hessians):
         'ASC_Train'
     ]
     nongenericNames = [
-        'cost', 'tt', 'relib',  # 'cost_s', 'tt_s', 'relib_s'
+        'cost', 'tt', 'relib', 'cost_s', 'tt_s', 'relib_s'
     ]
     genericNames = [
         'DrvLicens', 'PblcTrst',

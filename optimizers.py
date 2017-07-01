@@ -1,99 +1,291 @@
-# Authors: Kyle Kastner
-# License: BSD 3-clause
 import theano.tensor as T
 import numpy as np
 import theano
+from theano import shared
 
 
 class rmsprop(object):
-    """
-    RMSProp with nesterov momentum and gradient rescaling
-    """
-    def __init__(self, params, masks=None):
-        self.running_square_ = [theano.shared(np.zeros_like(p.get_value()))
-                                for p in params]
-        self.running_avg_ = [theano.shared(np.zeros_like(p.get_value()))
-                             for p in params]
-        self.memory_ = [theano.shared(np.zeros_like(p.get_value()))
-                        for p in params]
-        self.masks = masks
+    """ RMSProp
+    Scale learning rates by dividing with the moving average of the root mean
+    squared (RMS) gradients. See [1]_ for further description.
 
-    def updates(self, params, grads, learning_rate, momentum, rescale=5.):
-        grad_norm = T.sqrt(sum(map(lambda x: T.sqr(x).sum(), grads)))
-        not_finite = T.or_(T.isnan(grad_norm), T.isinf(grad_norm))
-        grad_norm = T.sqrt(grad_norm)
-        scaling_num = rescale
-        scaling_den = T.maximum(rescale, grad_norm)
-        # Magic constants
-        combination_coeff = 0.9
-        minimum_grad = 1E-4
+    Notes
+    -----
+    `rho` should be between 0 and 1. A value of `rho` close to 1 will decay the
+    moving average slowly and a value close to 0 will decay the moving average
+    fast.
+    Using the step size :math:`\\eta` and a decay factor :math:`\\rho` the
+    learning rate :math:`\\eta_t` is calculated as:
+    .. math::
+       r_t &= \\rho r_{t-1} + (1-\\rho)*g^2\\\\
+       \\eta_t &= \\frac{\\eta}{\\sqrt{r_t + \\epsilon}}
+    References
+    ----------
+    .. [1] Tieleman, T. and Hinton, G. (2012):
+           Neural Networks for Machine Learning, Lecture 6.5 - rmsprop.
+           Coursera. http://www.youtube.com/watch?v=O3sxAc4hxZU (formula @5:20)
+
+    """
+
+    def __init__(self, params, masks=None, momentum=0.9):
+        self.memory = []
+        self.velocity = []
+        for param in params:
+            value = param.get_value(borrow=True)
+            accu = shared(np.zeros(value.shape, dtype=value.dtype),
+                          broadcastable=param.broadcastable)
+            v = shared(np.zeros(value.shape, dtype=value.dtype),
+                       broadcastable=param.broadcastable)
+            self.memory.extend([accu])
+            self.velocity.extend([v])
+        self.masks = masks
+        self.momentum = momentum
+
+    def updates(self, params, grads, learning_rate,
+                rho=0.9, epsilon=1e-6):
+        """ RMSProp updates
+        Parameters
+        ----------
+        params : list of shared variables
+            The variables to generate update expressions for
+        learning_rate : float or symbolic scalar
+            The learning rate controlling the size of update steps
+        rho : float or symbolic scalar
+            Gradient moving average decay factor
+        epsilon : float or symbolic scalar
+            Small value added for numerical stability
+
+        Returns
+        -------
+        list(tuple)
+            A tuple mapping each parameter to its update expression
+
+        """
+
+        one = T.constant(1)  # prevent upcasting of float32
         updates = []
-        for n, (param, grad, mask) in enumerate(zip(params, grads, self.masks)):
-            grad = T.switch(not_finite, 0.1 * param,
-                            grad * (scaling_num / scaling_den))
-            old_square = self.running_square_[n]
-            new_square = combination_coeff * old_square + (
-                1. - combination_coeff) * T.sqr(grad)
-            old_avg = self.running_avg_[n]
-            new_avg = combination_coeff * old_avg + (
-                1. - combination_coeff) * grad
-            rms_grad = T.sqrt(new_square - new_avg ** 2)
-            rms_grad = T.maximum(rms_grad, minimum_grad)
-            memory = self.memory_[n]
-            update = momentum * memory - learning_rate * grad / rms_grad
-            update2 = momentum * momentum * memory - (
-                1 + momentum) * learning_rate * grad / rms_grad
-            updates.append((old_square, new_square))
-            updates.append((old_avg, new_avg))
-            updates.append((memory, update))
-            if self.masks is not None:
-                select = np.arange(len(mask.eval()))[mask.eval()]
-                updates.append((param, T.inc_subtensor(param[select], update2[select])))
-            else:
-                updates.append((param, param + update2))
+
+        for n, (param, grad, mask) in enumerate(
+                zip(params, grads, self.masks)):
+
+            accu = self.memory[n]
+            v = self.velocity[n]
+
+            # update accu
+            accu_new = rho * accu + (one - rho) * grad ** 2
+            updates.append((accu, accu_new))
+
+            rmsprop = - (learning_rate * grad / T.sqrt(accu_new + epsilon))
+
+            # update momentum
+            v_new = self.momentum * v + rmsprop
+            updates.append((v, v_new))
+
+            update = self.momentum * v_new + rmsprop
+
+            select = np.arange(len(mask.eval()))[mask.eval()]
+
+            updates.append((
+                param, T.inc_subtensor(param[select], update[select])
+            ))
 
         return updates
 
 
-class sgd_nesterov(object):
-    def __init__(self, params):
-        self.memory_ = [theano.shared(np.zeros_like(p.get_value()))
-                        for p in params]
+class adadelta(object):
+    """ Adadelta
+    Scale learning rates by the ratio of accumulated gradients to accumulated
+    updates, see [1]_ and notes for further description.
 
-    def updates(self, params, grads, learning_rate, momentum):
+    Notes
+    -----
+    rho should be between 0 and 1. A value of rho close to 1 will decay the
+    moving average slowly and a value close to 0 will decay the moving average
+    fast.
+    rho = 0.95 and epsilon=1e-6 are suggested in the paper and reported to
+    work for multiple datasets (MNIST, speech).
+    In the paper, no learning rate is considered (so learning_rate=1.0).
+    Probably best to keep it at this value.
+    epsilon is important for the very first update (so the numerator does
+    not become 0).
+    Using the step size eta and a decay factor rho the learning rate is
+    calculated as:
+    .. math::
+       r_t &= \\rho r_{t-1} + (1-\\rho)*g^2\\\\
+       \\eta_t &= \\eta \\frac{\\sqrt{s_{t-1} + \\epsilon}}
+                             {\sqrt{r_t + \epsilon}}\\\\
+       s_t &= \\rho s_{t-1} + (1-\\rho)*(\\eta_t*g)^2
+    References
+    ----------
+    .. [1] Zeiler, M. D. (2012):
+           ADADELTA: An Adaptive Learning Rate Method.
+           arXiv Preprint arXiv:1212.5701.
+
+    """
+
+    def __init__(self, params, masks=None, momentum=0.9):
+        self.memory = []
+        self.delta = []
+        self.velocity = []
+        for param in params:
+            value = param.get_value(borrow=True)
+            accu = shared(np.zeros(value.shape, dtype=value.dtype),
+                          broadcastable=param.broadcastable)
+            delta_accu = shared(np.zeros(value.shape, dtype=value.dtype),
+                                broadcastable=param.broadcastable)
+            v = shared(np.zeros(value.shape, dtype=value.dtype),
+                       broadcastable=param.broadcastable)
+            self.memory.extend([accu])
+            self.delta.extend([delta_accu])
+            self.velocity.extend([v])
+        self.masks = masks
+        self.momentum = momentum
+
+    def updates(self, params, grads, learning_rate,
+                rho=0.9, epsilon=1e-6):
+        """ Adadelta updates
+        Parameters
+        ----------
+        params : list of shared variables
+            The variables to generate update expressions for
+        learning_rate : float or symbolic scalar
+            The learning rate controlling the size of update steps
+        rho : float or symbolic scalar
+            Squared gradient moving average decay factor
+        epsilon : float or symbolic scalar
+            Small value added for numerical stability
+
+        Returns
+        -------
+        list(tuple)
+            A tuple mapping each parameter to its update expression
+
+        """
+
+        one = T.constant(1)  # prevent upcasting of float32
         updates = []
-        for n, (param, grad) in enumerate(zip(params, grads)):
-            memory = self.memory_[n]
-            update = momentum * memory - learning_rate * grad
-            update2 = momentum * momentum * memory - (
-                1 + momentum) * learning_rate * grad
-            updates.append((memory, update))
-            updates.append((param, param + update2))
+
+        for n, (param, grad, mask) in enumerate(
+                zip(params, grads, self.masks)):
+
+            accu = self.memory[n]
+            delta_accu = self.delta[n]
+            v = self.velocity[n]
+
+            # update accu
+            accu_new = rho * accu + (one - rho) * grad ** 2
+            updates.append((accu, accu_new))
+
+            # compute parameter update, using the 'old' delta_accu
+            adadelta = - (learning_rate
+                          * (grad
+                             * T.sqrt(delta_accu + epsilon)
+                             / T.sqrt(accu_new + epsilon)))
+
+            # update momentum
+            v_new = self.momentum * v + adadelta
+            updates.append((v, v_new))
+
+            update = self.momentum * v_new + adadelta
+
+            select = np.arange(len(mask.eval()))[mask.eval()]
+
+            # compute parameter update, using the 'old' delta_accu
+            updates.append((
+                param, T.inc_subtensor(param[select], update[select])
+            ))
+
+            # update delta_accu (as accu, but accumulating updates)
+            delta_accu_new = rho * delta_accu + (one - rho) * update ** 2
+            updates.append((delta_accu, delta_accu_new))
+
         return updates
 
 
 class sgd(object):
-    # Only here for API conformity with other optimizers
-    def __init__(self, params):
-        pass
+    """ Stochastic Gradient Descent (SGD)
+    Generates update expressions of the form:
+    param := param - learning_rate * gradient
+
+    """
+
+    def __init__(self, params, masks=None):
+        self.masks = masks
 
     def updates(self, params, grads, learning_rate):
+        """
+        Parameters
+        ----------
+        params : list of shared variables
+            The variables to generate update expressions for
+        learning_rate : float or symbolic scalar
+            The learning rate controlling the size of update steps
+        Returns
+        -------
+        list(tuple)
+            A tuple mapping each parameter to its update expression
+
+        """
         updates = []
-        for param, grad in zip(params, grads):
-            if param.name == 'c':
-                updates.append((param, T.inc_subtensor(param[:-1], - grad[:-1] * learning_rate)))
-            else:
-                updates.append((param, param - grad * learning_rate))
+        for param, grad, mask in zip(params, grads, self.masks):
+            update = - (learning_rate * grad)
+            select = np.arange(len(mask.eval()))[mask.eval()]
+
+            # compute parameter update, using the 'old' delta_accu
+            updates.append((
+                param, T.inc_subtensor(param[select], update[select])
+            ))
 
         return updates
 
 
-"""
-Usage:
-grads = T.grad(cost, self.params)
-#opt = sgd_nesterov(self.params)
-opt = rmsprop(self.params)
-updates = opt.updates(self.params, grads,
-                      learning_rate / np.cast['float32'](self.batch_size),
-                      momentum)
-"""
+class nesterov_momentum(object):
+    """ Stochastic Gradient Descent (SGD) with Nesterov momentum
+    Generates update expressions of the form:
+    velocity := momentum * velocity - learning_rate * gradient
+    param := param - learning_rate * gradient
+
+    """
+
+    def __init__(self, params, masks=None, momentum=0.9):
+        self.memory = []
+        for param in params:
+            value = param.get_value(borrow=True)
+            accu = shared(np.zeros(value.shape, dtype=value.dtype),
+                          broadcastable=param.broadcastable)
+            self.memory.extend([accu])
+        self.masks = masks
+        self.momentum = momentum
+
+    def updates(self, params, grads, learning_rate):
+        """
+        Parameters
+        ----------
+        params : list of shared variables
+            The variables to generate update expressions for
+        learning_rate : float or symbolic scalar
+            The learning rate controlling the size of update steps
+        Returns
+        -------
+        list(tuple)
+            A tuple mapping each parameter to its update expression
+
+        """
+        updates = []
+        for n, (param, grad, mask) in enumerate(zip(params, grads, self.masks)):
+            velocity = self.memory[n]
+
+            sgd = - (learning_rate * grad)
+            velocity_new = self.momentum * velocity + sgd
+            updates.append((velocity, velocity_new))
+
+            update = self.momentum * velocity_new + sgd
+
+            select = np.arange(len(mask.eval()))[mask.eval()]
+
+            # compute parameter update, using the 'old' delta_accu
+            updates.append((
+                param, T.inc_subtensor(param[select], update[select])
+            ))
+
+        return updates
