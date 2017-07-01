@@ -60,7 +60,7 @@ def main():
 
     # construct model
     model = Logistic(
-        sz_i, av, input=[x_ng, x_g], n_in=[(sz_m), (sz_k, sz_i)])
+        sz_i, av, input=[x_ng, x_g], n_in=[(sz_m,), (sz_k, sz_i)])
 
     cost = -model.loglikelihood(y)
 
