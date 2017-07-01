@@ -197,14 +197,14 @@ def run_analytics(model, hessians):
 
     choices = [
         'Bus', 'CarRental', 'Car', 'Plane', 'TrH', 'Train'
-        ]
+    ]
     ASCs = [
         'ASC_Bus', 'ASC_CarRental', 'ASC_Car', 'ASC_Plane', 'ASC_TrH',
         'ASC_Train'
-        ]
+    ]
     nongenericNames = [
         'cost', 'tt', 'relib',  # 'cost_s', 'tt_s', 'relib_s'
-        ]
+    ]
     genericNames = [
         'DrvLicens', 'PblcTrst',
         # 'Ag1825', 'Ag2545', 'Ag4565', 'Ag65M', 'Male', 'Fulltime',
@@ -226,7 +226,7 @@ def run_analytics(model, hessians):
         # 'Tp_Shpng_max', 'Tp_ActOdr_max',
         # 'Tp_NHotel1_max', 'Tp_NHotel2_max', 'Tp_NHotel3M_max',
         # 'Tp_FreqMonthlMulti_max', 'Tp_FreqYearMulti_max'
-        ]
+    ]
 
     for ASC in ASCs:
         paramNames.append(ASC)
