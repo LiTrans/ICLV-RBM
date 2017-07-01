@@ -9,13 +9,14 @@ class rmsprop(object):
     """
     RMSProp with nesterov momentum and gradient rescaling
     """
-    def __init__(self, params):
+    def __init__(self, params, masks=None):
         self.running_square_ = [theano.shared(np.zeros_like(p.get_value()))
                                 for p in params]
         self.running_avg_ = [theano.shared(np.zeros_like(p.get_value()))
                              for p in params]
         self.memory_ = [theano.shared(np.zeros_like(p.get_value()))
                         for p in params]
+        self.masks = masks
 
     def updates(self, params, grads, learning_rate, momentum, rescale=5.):
         grad_norm = T.sqrt(sum(map(lambda x: T.sqr(x).sum(), grads)))
@@ -27,7 +28,7 @@ class rmsprop(object):
         combination_coeff = 0.9
         minimum_grad = 1E-4
         updates = []
-        for n, (param, grad) in enumerate(zip(params, grads)):
+        for n, (param, grad, mask) in enumerate(zip(params, grads, self.masks)):
             grad = T.switch(not_finite, 0.1 * param,
                             grad * (scaling_num / scaling_den))
             old_square = self.running_square_[n]
@@ -45,13 +46,9 @@ class rmsprop(object):
             updates.append((old_square, new_square))
             updates.append((old_avg, new_avg))
             updates.append((memory, update))
-            if param.name == 'c':
-                updates.append((param, T.inc_subtensor(param[:-1], update2[:-1])))
-            elif param.name == 'D':
-                select = np.arange(len(param.eval()))
-                mask = np.ones(len(param.eval()), np.bool)
-                mask[-1::-6] = 0
-                updates.append((param, T.inc_subtensor(param[select[mask]], update2[select[mask]])))
+            if self.masks is not None:
+                select = np.arange(len(mask.eval()))[mask.eval()]
+                updates.append((param, T.inc_subtensor(param[select], update2[select])))
             else:
                 updates.append((param, param + update2))
 
