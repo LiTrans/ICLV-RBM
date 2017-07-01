@@ -13,7 +13,7 @@ class MixedLogit(object):
 		conditional logit: U = B_i * x_im + c_i
 		multinomial logit: U = B_im * x_m + c_i
 	"""
-	def __init__(self, n_out, av, input=[None, None], n_in=[None, None], draws=None):
+	def __init__(self, n_out, av, n_in=[None, None], input=[None, None], draws=None):
 		"""
 		Parameters
 		----------
