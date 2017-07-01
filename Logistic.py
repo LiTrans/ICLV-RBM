@@ -115,7 +115,7 @@ class Logistic(object):
 		conditional logit: U = B_i * x_im + c_i
 		multinomial logit: U = B_im * x_m + c_i
 	"""
-	def __init__(self, n_out, av, input=[None, None], n_in=[None, None]):
+	def __init__(self, n_out, av, n_in=[None, None], input=[None, None]):
 		"""
 		Parameters
 		----------
@@ -127,16 +127,30 @@ class Logistic(object):
 						 generic inputs.
 		"""
 		self.params = []
+		self.masks = []
+
 		self.c = shared(np.zeros((n_out,), dtype=floatX), name='c', borrow=True)
 		self.params.extend([self.c])
 
+		self.c_mask = np.ones((n_out,), dtype=np.bool)
+		self.c_mask[-1] = 0
+		self.masks.extend([shared(self.c_mask)])
+
 		if n_in[0] is not None:
-			self.B = shared(np.zeros(np.prod(n_in[0])), name='B', borrow=True)
+			self.B = shared(np.zeros(np.prod(n_in[0]), dtype=floatX), name='B', borrow=True)
 			self.params.extend([self.B])
+
+			self.B_mask = np.ones(np.prod(n_in[0]), dtype=np.bool)
+			self.masks.extend([shared(self.B_mask)])
+
 		if n_in[1] is not None:
-			self.D = shared(np.zeros(np.prod(n_in[1])), name='D', borrow=True)
+			self.D = shared(np.zeros(np.prod(n_in[1]), dtype=floatX), name='D', borrow=True)
 			self.D_mat = self.D.reshape(n_in[1])
 			self.params.extend([self.D])
+
+			self.D_mask = np.ones(n_in[1], dtype=np.bool)
+			self.D_mask[:, -1] = 0
+			self.masks.extend([shared(self.D_mask.flatten())])
 
 		# utility equation
 		V = T.dot(input[0], self.B) + T.dot(input[1], self.D_mat) + self.c
