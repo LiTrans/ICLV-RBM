@@ -8,7 +8,7 @@ from theano import shared, function
 from theano.tensor.shared_randomstreams import RandomStreams
 
 from Preprocessing import *
-from model.Logistic import *
+from model import Logistic
 from optimizers import *
 
 """ Custom options """
