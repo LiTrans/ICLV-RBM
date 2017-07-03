@@ -7,6 +7,11 @@ floatX = theano.config.floatX
 np.random.seed(42)
 
 
+def softmax(self, x, av):
+	# logitistic probability
+	e_x = av * T.exp(x - x.max(axis=-1, keepdims=True))
+	return e_x / e_x.sum(axis=-1, keepdims=True)
+
 class Logistic(object):
 	""" Simple discrete choice model
 		This module provides a simple softmax function on both generic
@@ -75,15 +80,10 @@ class Logistic(object):
 			+ self.c)
 
 		# estimate a logit model given availability conditions
-		self.p_y_given_x = T.clip(self.softmax(v, av), 1e-8, 1.0)
+		self.p_y_given_x = T.clip(softmax(v, av), 1e-8, 1.0)
 
 		# prediction given choices
 		self.y_pred = T.argmax(self.p_y_given_x, axis=-1)
-
-	def softmax(self, x, av):
-		# logitistic probability
-		e_x = av * T.exp(x - x.max(axis=-1, keepdims=True))
-		return e_x / e_x.sum(axis=-1, keepdims=True)
 
 	def loglikelihood(self, y):
 		# loglikelihood sum
@@ -179,15 +179,10 @@ class MixedLogit(object):
 
 		# estimate a logit model given availability conditions
 		self.p_y_given_x = T.mean(
-			T.clip(self.softmax(v, av), 1e-8, 1.0), axis=0)
+			T.clip(softmax(v, av), 1e-8, 1.0), axis=0)
 
 		# prediction given choices
 		self.y_pred = T.argmax(self.p_y_given_x, axis=-1)
-
-	def softmax(self, x, av):
-		# logitistic probability
-		e_x = av * T.exp(x - x.max(axis=-1, keepdims=True))
-		return e_x / e_x.sum(axis=-1, keepdims=True)
 
 	def loglikelihood(self, y):
 		# loglikelihood sum
@@ -332,15 +327,10 @@ class ICLV(object):
 		self.p_z_given_x_h = T.clip(T.nnet.sigmoid(ind), 1e-8, 1.0 - 1e-8)
 
 		# estimate a logit model given availability conditions
-		self.p_y_given_x = T.clip(self.softmax(v, av), 1e-8, 1.0)
+		self.p_y_given_x = T.clip(softmax(v, av), 1e-8, 1.0)
 
 		# prediction given choices
 		self.y_pred = T.argmax(self.p_y_given_x, axis=-1)
-
-	def softmax(self, x, av):
-		# logitistic probability
-		e_x = av * T.exp(x - x.max(axis=-1, keepdims=True))
-		return e_x / e_x.sum(axis=-1, keepdims=True)
 
 	def loglikelihood(self, y):
 		# loglikelihood sum
