@@ -26,7 +26,7 @@ class Preprocessing(object):
 		# new column from index
 		self.df['index'] = self.df.index
 
-	def data(self):
+	def extractData(self):
 		# extract alternative specific variables
 		cost = pd.melt(
 			self.df,
@@ -167,7 +167,3 @@ class Preprocessing(object):
 		ind = self.dataset_ind.values
 
 		return x_ng, x_g, y, avail, ind
-
-
-if __name__ == '__main__':
-	dataWrangling()
