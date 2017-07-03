@@ -92,7 +92,3 @@ class Logistic(object):
 	def errors(self, y):
 		# returns the number of errors as a percentage of total number of examples
 		return T.mean(T.neq(self.y_pred, y))
-
-
-if __name__ == '__main__':
-	main()
