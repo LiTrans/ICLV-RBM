@@ -7,8 +7,8 @@ import theano.tensor as T
 from theano import shared, function
 from theano.tensor.shared_randomstreams import RandomStreams
 
-from dataWrangling import *
-from model import Logistic
+from Preprocessing import *
+from model.Logistic import *
 from optimizers import *
 
 """ Custom options """
@@ -33,8 +33,8 @@ def main():
 
     """
     # compile and import dataset from csv#
-    dataset = Preprocessing('US_SP_Restructured.csv')
-    dataset_x_ng, dataset_x_g, dataset_y, avail, data_ind = dataset.data()
+    dataset = Preprocessing('data/US_SP_Restructured.csv')
+    dataset_x_ng, dataset_x_g, dataset_y, avail, data_ind = dataset.extractData()
     data_x_ng = shared(np.asarray(dataset_x_ng, dtype=floatX), borrow=True)
     data_x_g = shared(np.asarray(dataset_x_g, dtype=floatX), borrow=True)
     data_y = T.cast(
