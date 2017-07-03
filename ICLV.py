@@ -4,6 +4,7 @@ import theano.tensor as T
 from theano import shared
 
 floatX = theano.config.floatX
+np.random.seed(42)
 
 
 class ICLV(object):
@@ -50,36 +51,69 @@ class ICLV(object):
 
 		"""
 		self.params = []
+		self.masks = []
+
 		self.c_i = shared(
 			np.zeros((n_out,), dtype=floatX), name='c_i', borrow=True)
 
 		self.params.extend([self.c_i])  # Alternative specific constants
+
+		self.c_mask = np.ones((n_out,), dtype=np.bool)
+		self.c_mask[-1] = 0
+
+		self.masks.extend([shared(self.c_mask)])
 
 		self.B = shared(
 			np.zeros(np.prod(n_in[0]), dtype=floatX), name='B', borrow=True)
 
 		self.params.extend([self.B])  # Generic parameters (cost, time, etc.)
 
+		self.B_mask = np.ones(np.prod(n_in[0]), dtype=np.bool)
+
+		self.masks.extend([shared(self.B_mask)])
+
+		self.G_mask = np.ones(n_in[1], dtype=np.bool)
+		self.G_mask[:, -1] = 0
+
+		self.masks.extend([shared(self.G_mask.flatten())])
+
 		self.G = shared(
-			np.zeros(np.prod(n_in[1]), dtype=floatX), name='G', borrow=True)
+			np.random.uniform(-1., 1., np.prod(n_in[1]))*self.G_mask.flatten(),
+			name='G', borrow=True)
 		self.G_mat = self.G.reshape(n_in[1])
 
 		self.params.extend([self.G])  # Latent variable parameters
 
 		self.c_h = shared(
-			np.zeros((n_hid[0],), dtype=floatX), name='c_h', borrow=True)
+			np.zeros(n_hid[0], dtype=floatX), name='c_h', borrow=True)
 
 		self.params.extend([self.c_h])  # Latent variable constants
 
+		self.c_h_mask = np.ones(n_hid[0], dtype=np.bool)
+		self.c_h_mask[-1] = 0
+
+		self.masks.extend([shared(self.c_h_mask)])
+
 		self.A = shared(
 			np.zeros(np.prod(n_hid[1]), dtype=floatX), name='A', borrow=True)
-
 		self.A_mat = self.A.reshape(n_hid[1])  # Indicator variables
 
+		self.params.extend([self.A])
+
+		self.A_mask = np.ones(n_hid[1], dtype=np.bool)
+		self.A_mask[:, -1] = 0
+
+		self.masks.extend([shared(self.A_mask.flatten())])
+
 		self.c_z = shared(
-			np.zeros((n_ind[1][-1],), dtype=floatX), name='c_z', borrow=True)
+			np.zeros(n_ind[0], dtype=floatX), name='c_z', borrow=True)
 
 		self.params.extend([self.c_z])  # Indicator constants
+
+		self.c_z_mask = np.ones(n_ind[0], dtype=np.bool)
+		self.c_z_mask[-1] = 0
+
+		self.masks.extend([shared(self.c_z_mask)])
 
 		self.D = shared(
 			np.zeros(np.prod(n_hid[2]), dtype=floatX), name='D', borrow=True)
@@ -87,11 +121,16 @@ class ICLV(object):
 
 		self.params.extend([self.D])  # Alternative specific params (Latent)
 
+		self.D_mask = np.ones(n_hid[2], dtype=np.bool)
+		self.D_mask[:, -1] = 0
+
+		self.masks.extend([shared(self.D_mask.flatten())])
+
 		# latent variable equation
-		x_h = T.dot(input[1], self.G_mat) + self.c_h
+		x_h = T.nnet.sigmoid(T.dot(input[1], self.G_mat) + self.c_h)
 
 		# Indicator equation
-		z = T.dot(x_h, self.A_mat) + self.c_z
+		ind = T.dot(x_h, self.A_mat) + self.c_z
 
 		# utility equation
 		v = (
@@ -100,7 +139,7 @@ class ICLV(object):
 			+ self.c_i)
 
 		# estimate the indicator measurement model
-		self.p_z_given_x_h = T.clip(T.nnet.sigmoid(z), 1e-8, 1.0 - 1e-8)
+		self.p_z_given_x_h = T.clip(T.nnet.sigmoid(ind), 1e-8, 1.0 - 1e-8)
 
 		# estimate a logit model given availability conditions
 		self.p_y_given_x = T.clip(self.softmax(v, av), 1e-8, 1.0)
@@ -117,12 +156,12 @@ class ICLV(object):
 		# loglikelihood sum
 		return T.sum(T.log(self.p_y_given_x)[T.arange(y.shape[0]), y])
 
-	def cross_entropy(self, y):
+	def cross_entropy(self, z):
 		# cross entropy loss cross_entropy(z,p):
 		# sum(z*log(p) + (1-z)*log(1-p), axis=-1)
 		return T.sum(
-			y * T.log(self.p_z_given_x_h)
-			+ (1 - y) * T.log(1 - self.p_z_given_x_h), axis=-1)
+			z * T.log(self.p_z_given_x_h)
+			+ (1 - z) * T.log(1 - self.p_z_given_x_h))
 
 	def errors(self, y):
 		# returns the number of errors as a percentage of total number of examples

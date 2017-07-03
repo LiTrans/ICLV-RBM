@@ -34,12 +34,18 @@ class MixedLogit(object):
 		"""
 		self.draws = draws
 		self.params = []
+		self.masks = []
 
 		self.c = shared(
 			np.zeros((n_out,), dtype=floatX),
 			name='c', borrow=True)
 
 		self.params.extend([self.c])
+
+		self.c_mask = np.ones((n_out,), dtype=np.bool)
+		self.c_mask[-1] = 0
+
+		self.masks.extend([shared(self.c_mask)])
 
 		if n_in[0] is not None:
 			self.B = shared(
@@ -48,11 +54,19 @@ class MixedLogit(object):
 
 			self.params.extend([self.B])
 
+			self.B_mask = np.ones(np.prod(n_in[0]), dtype=np.bool)
+
+			self.masks.extend([shared(self.B_mask)])
+
 			self.B_s = shared(
 				np.zeros(np.prod(n_in[0]), dtype=floatX),
 				name='B_s', borrow=True)
 
 			self.params.extend([self.B_s])
+
+			self.B_s_mask = np.ones(np.prod(n_in[0]), dtype=np.bool)
+
+			self.masks.extend([shared(self.B_s_mask)])
 
 		if n_in[1] is not None:
 			self.D = shared(
@@ -61,6 +75,11 @@ class MixedLogit(object):
 			self.D_mat = self.D.reshape(n_in[1])
 
 			self.params.extend([self.D])
+
+			self.D_mask = np.ones(n_in[1], dtype=np.bool)
+			self.D_mask[:, -1] = 0
+
+			self.masks.extend([shared(self.D_mask.flatten())])
 
 		# utility equation
 		self.B_RND = self.B + (self.B_s * draws)

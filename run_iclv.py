@@ -50,10 +50,10 @@ def main():
     sz_z = dataset_ind.shape[1]  # number of indicators
 
     sz_minibatch = sz_n  # model hyperparameters
-    learning_rate = 1e-3
-    momentum = 0.9
+    learning_rate = 0.2
+    momentum = 0.95
 
-    n_hidden = 1  # latent variable model parameters
+    n_hidden = 9  # latent variable model parameters
 
     x_ng = T.tensor3('data_x_ng')  # symbolic theano tensors
     x_g = T.matrix('data_x_g')
@@ -72,11 +72,11 @@ def main():
         n_hid=[(n_hidden,), (n_hidden, sz_z), (n_hidden, sz_i)],
         n_ind=(sz_z,))
 
-    cost = - model.loglikelihood(y) - model.cross_entropy(y)
+    cost = - (model.loglikelihood(y) + model.cross_entropy(z))
 
     # calculate the gradients wrt to the loss function
     grads = T.grad(cost=cost, wrt=model.params)
-    optimizer = rmsprop(model.params, model.masks)
+    optimizer = adadelta(model.params, model.masks)
 
     updates = optimizer.updates(
         model.params, grads, learning_rate, momentum)
@@ -89,7 +89,9 @@ def main():
             x_ng: data_x_ng,
             x_g: data_x_g,
             y: data_y,
-            av: data_av})
+            av: data_av,
+            z: data_ind},
+        on_unused_input='ignore')
 
     # null loglikelihood function
     fn_null = function(
@@ -99,7 +101,9 @@ def main():
             x_ng: data_x_ng,
             x_g: data_x_g,
             y: data_y,
-            av: data_av})
+            av: data_av,
+            z: data_ind},
+        on_unused_input='ignore')
 
     # compile the theano functions
     fn_estimate = function(
@@ -115,18 +119,20 @@ def main():
             y: data_y[
                 index*sz_minibatch: T.min(((index+1)*sz_minibatch, sz_n))],
             av: data_av[
+                index*sz_minibatch: T.min(((index+1)*sz_minibatch, sz_n))],
+            z: data_ind[
                 index*sz_minibatch: T.min(((index+1)*sz_minibatch, sz_n))]},
         allow_input_downcast=True,
-        on_unused_input='ignore',)
+        on_unused_input='ignore')
 
     """ Main estimation process loop """
     print('Begin estimation...')
 
     epoch = 0  # process loop parameters
-    sz_epoches = 2500
+    sz_epoches = 99999
     sz_batches = sz_n // sz_minibatch
     done_looping = False
-    patience = 100
+    patience = 300
     patience_inc = 10
     best_loglikelihood = -np.inf
     null_Loglikelihood = -fn_null()
@@ -145,7 +151,7 @@ def main():
               % (epoch, this_loglikelihood))
 
         if this_loglikelihood > best_loglikelihood:
-            if this_loglikelihood > 0.99 * best_loglikelihood:
+            if this_loglikelihood > 0.997 * best_loglikelihood:
                 patience += patience_inc
             best_loglikelihood = this_loglikelihood
             with open('best_model.pkl', 'wb') as f:
@@ -161,6 +167,10 @@ def main():
     end_time = timeit.default_timer()
 
     """ Analytics and model statistics """
+    print('... solving Hessians')
+    h = np.hstack([np.diagonal(mat) for mat in fn_hessian()])
+    n_est_params = np.count_nonzero(h)
+
     print('@iteration %d, run time %.3f '
           % (epoch, end_time-start_time))
     print('Null Loglikelihood: %.3f'
@@ -169,16 +179,18 @@ def main():
           % final_Loglikelihood)
     print('rho square %.3f'
           % rho_square)
+    print('AIC %.3f'
+          % (2*n_est_params + 2*final_Loglikelihood))
+    print('BIC %.3f'
+          % (np.log(sz_n)*n_est_params + 2*final_Loglikelihood))
 
     with open('best_model.pkl', 'rb') as f:
         best_model = pickle.load(f)
 
-    print('... solving Hessians')
-    h = np.hstack([np.diagonal(mat) for mat in fn_hessian()])
-    run_analytics(best_model, h)
+    run_analytics(best_model, h, n_hidden)
 
 
-def run_analytics(model, hessians):
+def run_analytics(model, hessians, n_latentVars):
     stderr = 2 / np.sqrt(hessians)
     betas = np.concatenate(
         [param.get_value() for param in model.params], axis=0)
@@ -200,11 +212,12 @@ def run_analytics(model, hessians):
     ]
     genericNames = [
         'DrvLicens', 'PblcTrst',
-        # 'Ag1825', 'Ag2545', 'Ag4565', 'Ag65M', 'Male', 'Fulltime',
-        # 'PrtTime', 'Unemplyd', 'Edu_Highschl', 'Edu_BSc', 'Edu_MscPhD',
-        # 'HH_Veh0', 'HH_Veh1',
-        # 'HH_Veh2M', 'HH_Adult1', 'HH_Adult2', 'HH_Adult3M', 'HH_Chld0',
-        # 'HH_Chld1', 'HH_Chld2M',
+        'Ag1825', 'Ag2545', 'Ag4565', 'Ag65M',
+        'Male', 'Fulltime', 'PrtTime', 'Unemplyd',
+        'Edu_Highschl', 'Edu_BSc', 'Edu_MscPhD',
+        'HH_Veh0', 'HH_Veh1', 'HH_Veh2M',
+        'HH_Adult1', 'HH_Adult2', 'HH_Adult3M',
+        'HH_Chld0', 'HH_Chld1', 'HH_Chld2M',
         # 'HH_Inc020K', 'HH_Inc2060K', 'HH_Inc60KM', 'HH_Sngl',
         # 'HH_SnglParent', 'HH_AllAddults', 'HH_Nuclear', 'P_Chld',
         # 'O_MTL_US_max', 'O_Odr_US_max', 'D_Bstn_max',
@@ -221,11 +234,47 @@ def run_analytics(model, hessians):
         # 'Tp_FreqMonthlMulti_max', 'Tp_FreqYearMulti_max'
     ]
 
+    latentNames = []
+    latentConstants = []
+    for n in np.arange(n_latentVars):
+        latentNames.append('LV'+str(n))
+        latentConstants.append('CONST_LV'+str(n))
+
+    indicators = [
+        'Envrn_Car', 'Envrn_Train', 'Envrn_Bus', 'Envrn_Plane',
+        'Safe_Car', 'Safe_Train', 'Safe_Bus', 'Safe_Plane',
+        'Comf_Car', 'Comf_Train', 'Comf_Bus', 'Comf_Plane'
+    ]
+
+    latentVariables = []
+    for name in genericNames:
+        for lv in latentNames:
+            latentVariables.append(name+'_'+lv)
+
+    indicatorVariables = []
+    for lv in latentNames:
+        for ind in indicators:
+            indicatorVariables.append(lv+'_'+ind)
+
+    indicatorConstants = [
+        'IND_Envrn_Car', 'IND_Envrn_Train', 'IND_Envrn_Bus', 'IND_Envrn_Plane',
+        'IND_Safe_Car', 'IND_Safe_Train', 'IND_Safe_Bus', 'IND_Safe_Plane',
+        'IND_Comf_Car', 'IND_Comf_Train', 'IND_Comf_Bus', 'IND_Comf_Plane'
+    ]
+
     for ASC in ASCs:
         paramNames.append(ASC)
     for name in nongenericNames:
         paramNames.append(name)
-    for name in genericNames:
+    for name in latentVariables:
+        paramNames.append(name)
+    for name in latentConstants:
+        paramNames.append(name)
+    for name in indicatorVariables:
+        paramNames.append(name)
+    for name in indicatorConstants:
+        paramNames.append(name)
+    for name in latentNames:
         for choice in choices:
             paramNames.append(name+'_'+choice)
 

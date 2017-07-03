@@ -125,12 +125,12 @@ class Preprocessing(object):
 		self.dataset_x_ng = data_SP[['cost', 'tt', 'relib']]
 		self.dataset_x_g = data_RP[[
 			'DrvLicens', 'PblcTrst',
-			# 'Ag1825', 'Ag2545', 'Ag4565', 'Ag65M',
-			# 'Male', 'Fulltime', 'PrtTime', 'Unemplyd',
-			# 'Edu_Highschl', 'Edu_BSc', 'Edu_MscPhD',
-			# 'HH_Veh0', 'HH_Veh1', 'HH_Veh2M',
-			# 'HH_Adult1', 'HH_Adult2', 'HH_Adult3M',
-			# 'HH_Chld0', 'HH_Chld1', 'HH_Chld2M',
+			'Ag1825', 'Ag2545', 'Ag4565', 'Ag65M',
+			'Male', 'Fulltime', 'PrtTime', 'Unemplyd',
+			'Edu_Highschl', 'Edu_BSc', 'Edu_MscPhD',
+			'HH_Veh0', 'HH_Veh1', 'HH_Veh2M',
+			'HH_Adult1', 'HH_Adult2', 'HH_Adult3M',
+			'HH_Chld0', 'HH_Chld1', 'HH_Chld2M',
 			# 'HH_Inc020K', 'HH_Inc2060K', 'HH_Inc60KM',
 			# 'HH_Sngl', 'HH_SnglParent', HH_AllAddults',
 			# 'HH_Nuclear', 'P_Chld',
