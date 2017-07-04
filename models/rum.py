@@ -7,10 +7,11 @@ floatX = theano.config.floatX
 np.random.seed(42)
 
 
-def softmax(self, x, av):
+def softmax(x, av):
 	# logitistic probability
 	e_x = av * T.exp(x - x.max(axis=-1, keepdims=True))
 	return e_x / e_x.sum(axis=-1, keepdims=True)
+
 
 class Logistic(object):
 	""" Simple discrete choice model
@@ -346,4 +347,3 @@ class ICLV(object):
 	def errors(self, y):
 		# returns the number of errors as a percentage of total number of examples
 		return T.mean(T.neq(self.y_pred, y))
-

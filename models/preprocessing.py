@@ -12,19 +12,19 @@ def extractdata(csvName='US_SP_Restructured.csv'):
 	df['index'] = df.index
 	# extract alternative specific variables
 	cost = pd.melt(df, id_vars=['quest', 'index'],
-		       value_vars=['Car_Cost', 'CarRental_Cost', 'Bus_Cost', 
-				   'Plane_Cost', 'Train_Cost', 'TrH_Cost'],
-		       value_name='cost')
+		       	   value_vars=['Car_Cost', 'CarRental_Cost', 'Bus_Cost',
+				   			   'Plane_Cost', 'Train_Cost', 'TrH_Cost'],
+		       	   value_name='cost')
 
 	tt = pd.melt(df, id_vars=['quest', 'index'],
-		     value_vars=['Car_TT', 'CarRental_TT', 'Bus_TT', 
-				 'Plane_TT', 'Train_TT', 'TrH_TT'],
-		     value_name='tt')
+		     	 value_vars=['Car_TT', 'CarRental_TT', 'Bus_TT',
+				 		     'Plane_TT', 'Train_TT', 'TrH_TT'],
+		     	 value_name='tt')
 
 	relib = pd.melt(df, id_vars=['quest', 'index'],
-			value_vars=['CarRelib', 'CarRentalRelib', 'BusRelib', 
-				    'PlaneRelib', 'TrainRelib', 'TrHRelib'],
-			value_name='reliability')
+				    value_vars=['CarRelib', 'CarRentalRelib', 'BusRelib',
+							    'PlaneRelib', 'TrainRelib', 'TrHRelib'],
+					value_name='reliability')
 
 	# extract generic variables
 	data_RP = df[[
@@ -63,14 +63,14 @@ def extractdata(csvName='US_SP_Restructured.csv'):
 
 	# extract availability
 	data_avail = df[['quest', 'index',
-			 'AV_Car', 'AV_CarRental', 'AV_Bus', 'AV_Plane', 
-			 'AV_Train', 'AV_TrH']]
+					 	'AV_Car', 'AV_CarRental', 'AV_Bus', 'AV_Plane',
+			 	 	 'AV_Train', 'AV_TrH']]
 
 	# extract indicators
 	data_ind = df[['quest', 'index',
-		       'Envrn_Car', 'Envrn_Train', 'Envrn_Bus', 'Envrn_Plane',
-		       'Safe_Car', 'Safe_Train', 'Safe_Bus', 'Safe_Plane',
-		       'Comf_Car', 'Comf_Train', 'Comf_Bus', 'Comf_Plane']]
+		       	   'Envrn_Car', 'Envrn_Train', 'Envrn_Bus', 'Envrn_Plane',
+		           'Safe_Car', 'Safe_Train', 'Safe_Bus', 'Safe_Plane',
+		       	   'Comf_Car', 'Comf_Train', 'Comf_Bus', 'Comf_Plane']]
 
 	data_choice = data_choice.sort_values(['quest', 'index'])
 	cost = cost.sort_values(['quest', 'index', 'variable'])
@@ -93,7 +93,7 @@ def extractdata(csvName='US_SP_Restructured.csv'):
 	# extract data arrays
 	dataset_y = data_choice[['New_SP_Choice']]
 	dataset_x_ng = data_SP[['cost', 'tt', 'relib']]
-	
+
 	dataset_x_g = data_RP[[
 		'DrvLicens', 'PblcTrst',
 		'Ag1825', 'Ag2545', 'Ag4565', 'Ag65M',
@@ -102,14 +102,14 @@ def extractdata(csvName='US_SP_Restructured.csv'):
 		'HH_Veh0', 'HH_Veh1', 'HH_Veh2M',
 		'HH_Adult1', 'HH_Adult2', 'HH_Adult3M',
 		'HH_Chld0', 'HH_Chld1', 'HH_Chld2M',
-		# 'HH_Inc020K', 'HH_Inc2060K', 'HH_Inc60KM',
+		'HH_Inc020K', 'HH_Inc2060K', 'HH_Inc60KM',
 		# 'HH_Sngl', 'HH_SnglParent', HH_AllAddults',
 		# 'HH_Nuclear', 'P_Chld',
 		# 'O_MTL_US_max', 'O_Odr_US_max',
 		# 'D_Bstn_max', 'D_NYC_max', 'D_Maine_max',
 		# 'Tp_Onewy_max', 'Tp_2way_max',
-		# 'Tp_h06_max', 'Tp_h69_max', 'Tp_h915_max', 'Tp_h1519_max',
-		# 'Tp_h1924_max', 'Tp_h1524_max',
+		# 'Tp_h06_max', 'Tp_h69_max', 'Tp_h915_max',
+		# 'Tp_h1519_max', 'Tp_h1924_max', 'Tp_h1524_max',
 		# 'Tp_Y2016_max', 'Tp_Y2017_max',
 		# 'Tp_Wntr_max', 'Tp_Sprng_max', 'Tp_Sumr_max', 'Tp_Fall_max',
 		# 'Tp_CarDrv_max', 'Tp_CarPsngr_max', 'Tp_CarShrRnt_max',
@@ -120,10 +120,10 @@ def extractdata(csvName='US_SP_Restructured.csv'):
 		# 'Tp_FreqMonthlMulti_max', 'Tp_FreqYearMulti_max',
 		# 'Tp_FreqYear1_max',
 	]]
-	
-	dataset_avail = data_avail[['AV_Bus', 'AV_CarRental', 'AV_Car', 
+
+	dataset_avail = data_avail[['AV_Bus', 'AV_CarRental', 'AV_Car',
 				    'AV_Plane', 'AV_TrH', 'AV_Train']]
-	
+
 	dataset_ind = data_ind[['Envrn_Car', 'Envrn_Train', 'Envrn_Bus', 'Envrn_Plane',
 				'Safe_Car', 'Safe_Train', 'Safe_Bus', 'Safe_Plane',
 				'Comf_Car', 'Comf_Train', 'Comf_Bus', 'Comf_Plane']]
@@ -135,4 +135,4 @@ def extractdata(csvName='US_SP_Restructured.csv'):
 	avail = dataset_avail.values
 	ind = dataset_ind.values
 
-return x_ng, x_g, y, avail, ind
+	return x_ng, x_g, y, avail, ind
