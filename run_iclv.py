@@ -30,6 +30,8 @@ def main():
     step 4: build model and define cost function
     step 5: define gradient calculation algorithm
     step 6: define Theano symbolic functions
+    step 7: run main estimaiton loop for n iterations
+    step 8: perform analytics and model statistics
 
     """
     # compile and import dataset from csv#
