@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 
-def extractData(csvName='US_SP_Restructured.csv'):
+def extractdata(csvName='US_SP_Restructured.csv'):
 	"""
 	Parameters
 	----------
