@@ -7,21 +7,19 @@ import theano.tensor as T
 from theano import shared, function
 from theano.tensor.shared_randomstreams import RandomStreams
 
-import optimizers
+from models import optimizers
 from models.rum import Logistic
-from models.preprocessing import extractData
-
+from models.preprocessing import extractdata
 
 """ Custom options """
 floatX = theano.config.floatX
 pd.set_option('display.float_format', lambda x: '%.3f' % x)
 pd.options.display.max_rows = 999
+csvString = 'data/US_SP_Restructured.csv'
 
 
 def main():
-    """ Discrete choice model estimation with theano
-        Under normal circumstances, no modification
-        necessary
+    """ Discrete choice model estimation with Theano
 
     Setup
     -----
@@ -34,18 +32,18 @@ def main():
 
     """
     # compile and import dataset from csv#
-    dataset_x_ng, dataset_x_g, dataset_y, avail, data_ind = extractData('data/US_SP_Restructured.csv')
-    data_x_ng = shared(np.asarray(dataset_x_ng, dtype=floatX), borrow=True)
-    data_x_g = shared(np.asarray(dataset_x_g, dtype=floatX), borrow=True)
+    d_x_ng, d_x_g, d_y, avail, d_ind = extractdata(csvString)
+    data_x_ng = shared(np.asarray(d_x_ng, dtype=floatX), borrow=True)
+    data_x_g = shared(np.asarray(d_x_g, dtype=floatX), borrow=True)
     data_y = T.cast(
-        shared(np.asarray(dataset_y-1, dtype=floatX), borrow=True),
+        shared(np.asarray(d_y-1, dtype=floatX), borrow=True),
         'int32')
     data_av = shared(np.asarray(avail, dtype=floatX), borrow=True)
 
-    sz_n = dataset_x_g.shape[0]  # number of samples
-    sz_k = dataset_x_g.shape[1]  # number of generic variables
-    sz_m = dataset_x_ng.shape[2]  # number of non-generic variables
-    sz_i = dataset_x_ng.shape[1]  # number of alternatives
+    sz_n = d_x_g.shape[0]  # number of samples
+    sz_k = d_x_g.shape[1]  # number of generic variables
+    sz_m = d_x_ng.shape[2]  # number of non-generic variables
+    sz_i = d_x_ng.shape[1]  # number of alternatives
 
     sz_minibatch = sz_n  # model hyperparameters
     learning_rate = 0.3
@@ -60,9 +58,11 @@ def main():
 
     # construct model
     model = Logistic(
-        sz_i, av, input=[x_ng, x_g], n_in=[(sz_m,), (sz_k, sz_i)])
+        sz_i, av,
+        input=[x_ng, x_g],
+        n_in=[(sz_m,), (sz_k, sz_i)])
 
-    cost = -model.loglikelihood(y)
+    cost = - model.loglikelihood(y)
 
     # calculate the gradients wrt to the loss function
     grads = T.grad(cost=cost, wrt=model.params)
@@ -79,17 +79,19 @@ def main():
             x_ng: data_x_ng,
             x_g: data_x_g,
             y: data_y,
-            av: data_av})
+            av: data_av},
+        on_unused_input='ignore')
 
     # null loglikelihood function
     fn_null = function(
         inputs=[],
-        outputs=-model.loglikelihood(y),
+        outputs=model.loglikelihood(y),
         givens={
             x_ng: data_x_ng,
             x_g: data_x_g,
             y: data_y,
-            av: data_av})
+            av: data_av},
+        on_unused_input='ignore')
 
     # compile the theano functions
     fn_estimate = function(
@@ -119,7 +121,7 @@ def main():
     patience = 300
     patience_inc = 10
     best_loglikelihood = -np.inf
-    null_Loglikelihood = -fn_null()
+    null_Loglikelihood = fn_null()
     start_time = timeit.default_timer()
 
     while epoch < sz_epoches and done_looping is False:
@@ -135,7 +137,7 @@ def main():
               % (epoch, this_loglikelihood))
 
         if this_loglikelihood > best_loglikelihood:
-            if this_loglikelihood > 0.995 * best_loglikelihood:
+            if this_loglikelihood > 0.997 * best_loglikelihood:
                 patience += patience_inc
             best_loglikelihood = this_loglikelihood
             with open('best_model.pkl', 'wb') as f:
@@ -151,6 +153,12 @@ def main():
     end_time = timeit.default_timer()
 
     """ Analytics and model statistics """
+    print('... solving Hessians')
+    h = np.hstack([np.diagonal(mat) for mat in fn_hessian()])
+    n_est_params = np.count_nonzero(h)
+    aic = 2 * n_est_params - 2 * final_Loglikelihood
+    bic = np.log(sz_n) * n_est_params - 2 * final_Loglikelihood
+
     print('@iteration %d, run time %.3f '
           % (epoch, end_time-start_time))
     print('Null Loglikelihood: %.3f'
@@ -159,12 +167,14 @@ def main():
           % final_Loglikelihood)
     print('rho square %.3f'
           % rho_square)
+    print('AIC %.3f'
+          % aic)
+    print('BIC %.3f'
+          % bic)
 
     with open('best_model.pkl', 'rb') as f:
         best_model = pickle.load(f)
 
-    print('... solving Hessians')
-    h = np.hstack([np.diagonal(mat) for mat in fn_hessian()])
     run_analytics(best_model, h)
 
 
@@ -178,43 +188,47 @@ def run_analytics(model, hessians):
 
     paramNames = []  # print dataFrame
 
-    choices = [
-        'Bus', 'CarRental', 'Car', 'Plane', 'TrH', 'Train'
-    ]
-    ASCs = [
-        'ASC_Bus', 'ASC_CarRental', 'ASC_Car', 'ASC_Plane', 'ASC_TrH',
-        'ASC_Train'
-    ]
-    nongenericNames = [
-        'cost', 'tt', 'relib',  # 'cost_s', 'tt_s', 'relib_s'
-    ]
+    choices = ['Bus', 'CarRental', 'Car', 'Plane', 'TrH', 'Train']
+
+    ASCs = []
+    for choice in choices:
+        ASCs.append('ASC_'+choice)
+
+    nongenericNames = ['cost', 'tt', 'relib']
+
     genericNames = [
         'DrvLicens', 'PblcTrst',
-        # 'Ag1825', 'Ag2545', 'Ag4565', 'Ag65M', 'Male', 'Fulltime',
-        # 'PrtTime', 'Unemplyd', 'Edu_Highschl', 'Edu_BSc', 'Edu_MscPhD',
-        # 'HH_Veh0', 'HH_Veh1',
-        # 'HH_Veh2M', 'HH_Adult1', 'HH_Adult2', 'HH_Adult3M', 'HH_Chld0',
-        # 'HH_Chld1', 'HH_Chld2M',
-        # 'HH_Inc020K', 'HH_Inc2060K', 'HH_Inc60KM', 'HH_Sngl',
-        # 'HH_SnglParent', 'HH_AllAddults', 'HH_Nuclear', 'P_Chld',
-        # 'O_MTL_US_max', 'O_Odr_US_max', 'D_Bstn_max',
-        # 'D_NYC_max', 'D_Maine_max',
-        # 'Tp_Onewy_max', 'Tp_2way_max', 'Tp_h06_max', 'Tp_h69_max',
-        # 'Tp_h915_max', 'Tp_h1519_max', 'Tp_h1924_max', 'Tp_h1524_max',
+        'Ag1825', 'Ag2545', 'Ag4565', 'Ag65M', 'Male', 'Fulltime',
+        'PrtTime', 'Unemplyd', 'Edu_Highschl', 'Edu_BSc', 'Edu_MscPhD',
+        'HH_Veh0', 'HH_Veh1', 'HH_Veh2M',
+        'HH_Adult1', 'HH_Adult2', 'HH_Adult3M',
+        'HH_Chld0', 'HH_Chld1', 'HH_Chld2M',
+        'HH_Inc020K', 'HH_Inc2060K', 'HH_Inc60KM',
+        # 'HH_Sngl', 'HH_SnglParent', 'HH_AllAddults',
+        # 'HH_Nuclear', 'P_Chld',
+        # 'O_MTL_US_max', 'O_Odr_US_max',
+        # 'D_Bstn_max', 'D_NYC_max', 'D_Maine_max',
+        # 'Tp_Onewy_max', 'Tp_2way_max',
+        # 'Tp_h06_max', 'Tp_h69_max', 'Tp_h915_max',
+        # 'Tp_h1519_max', 'Tp_h1924_max', 'Tp_h1524_max',
         # 'Tp_Y2016_max', 'Tp_Y2017_max',
         # 'Tp_Wntr_max', 'Tp_Sprng_max', 'Tp_Sumr_max', 'Tp_Fall_max',
         # 'Tp_CarDrv_max', 'Tp_CarPsngr_max', 'Tp_CarShrRnt_max',
         # 'Tp_Train_max', 'Tp_Bus_max',
-        # 'Tp_Plane_max', 'Tp_ModOdr_max', 'Tp_WrkSkl_max', 'Tp_Leisr_max',
+        # 'Tp_Plane_max', 'Tp_ModOdr_max',
+        # 'Tp_WrkSkl_max', 'Tp_Leisr_max',
         # 'Tp_Shpng_max', 'Tp_ActOdr_max',
         # 'Tp_NHotel1_max', 'Tp_NHotel2_max', 'Tp_NHotel3M_max',
         # 'Tp_FreqMonthlMulti_max', 'Tp_FreqYearMulti_max'
+        # 'Tp_FreqYear1_max',
     ]
 
     for ASC in ASCs:
         paramNames.append(ASC)
+
     for name in nongenericNames:
         paramNames.append(name)
+
     for name in genericNames:
         for choice in choices:
             paramNames.append(name+'_'+choice)
