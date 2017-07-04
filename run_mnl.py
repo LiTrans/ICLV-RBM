@@ -7,9 +7,10 @@ import theano.tensor as T
 from theano import shared, function
 from theano.tensor.shared_randomstreams import RandomStreams
 
-from preprocessing import extractData
-from model import Logistic
-from optimizers import *
+import optimizers
+from models.rum import Logistic
+from models.preprocessing import extractData
+
 
 """ Custom options """
 floatX = theano.config.floatX
@@ -65,9 +66,9 @@ def main():
 
     # calculate the gradients wrt to the loss function
     grads = T.grad(cost=cost, wrt=model.params)
-    optimizer = adadelta(model.params, model.masks, momentum)
+    opt = optimizers.adadelta(model.params, model.masks, momentum)
 
-    updates = optimizer.updates(
+    updates = opt.updates(
         model.params, grads, learning_rate)
 
     # hessian function
