@@ -224,7 +224,7 @@ class ICLV(object):
 
 	def __init__(self, n_out, av,
 				 n_in=[None, None], n_hid=[None, None, None], n_ind=[None],
-				 input=[None, None]):
+				 input=[None, None], output=None):
 		"""
 		Parameters
 		----------
@@ -258,8 +258,9 @@ class ICLV(object):
 
 		self.masks.extend([shared(self.B_mask)])
 
-		self.G_mask = np.ones(n_in[1], dtype=np.bool)
-		self.G_mask[:, -1] = 0
+		self.G_mask = np.ones(np.prod(n_in[1]), dtype=np.bool)
+		#self.G_mask[:, -1] = 0
+		# self.G_mask[[5, 8, 12, 14, 15, 18, 19, 20, 27, 30, 31, 32, 33, 34, 35, 36, 38, 39, 41, 44, 47, 48, 50, 51, 53, 56, 59]] = 0
 
 		self.masks.extend([shared(self.G_mask.flatten())])
 
@@ -270,15 +271,15 @@ class ICLV(object):
 
 		self.params.extend([self.G])  # Latent variable parameters
 
-		self.c_h = shared(
-			np.zeros(n_hid[0], dtype=floatX), name='c_h', borrow=True)
-
-		self.params.extend([self.c_h])  # Latent variable constants
-
-		self.c_h_mask = np.ones(n_hid[0], dtype=np.bool)
-		self.c_h_mask[-1] = 0
-
-		self.masks.extend([shared(self.c_h_mask)])
+		# self.c_h = shared(
+		# 	np.zeros(n_hid[0], dtype=floatX), name='c_h', borrow=True)
+		#
+		# self.params.extend([self.c_h])  # Latent variable constants
+		#
+		# self.c_h_mask = np.ones(n_hid[0], dtype=np.bool)
+		# self.c_h_mask[-1] = 0
+		#
+		# self.masks.extend([shared(self.c_h_mask)])
 
 		self.A = shared(
 			np.zeros(np.prod(n_hid[1]), dtype=floatX), name='A', borrow=True)
@@ -286,20 +287,23 @@ class ICLV(object):
 
 		self.params.extend([self.A])
 
-		self.A_mask = np.ones(n_hid[1], dtype=np.bool)
-		self.A_mask[:, -1] = 0
+		self.A_mask = np.ones(np.prod(n_hid[1]), dtype=np.bool)
+		# self.A_mask[:, -1] = 0
+		self.A_mask[[0,1,2,3, 4,5,6,7,
+					 16,17,18,19, 20,21,22,23,
+					 24,25,26,27, 32,33,34,35]] = 0
 
 		self.masks.extend([shared(self.A_mask.flatten())])
 
-		self.c_z = shared(
-			np.zeros(n_ind[0], dtype=floatX), name='c_z', borrow=True)
-
-		self.params.extend([self.c_z])  # Indicator constants
-
-		self.c_z_mask = np.ones(n_ind[0], dtype=np.bool)
-		self.c_z_mask[-1] = 0
-
-		self.masks.extend([shared(self.c_z_mask)])
+		# self.c_z = shared(
+		# 	np.zeros(n_ind[0], dtype=floatX), name='c_z', borrow=True)
+		#
+		# self.params.extend([self.c_z])  # Indicator constants
+		#
+		# self.c_z_mask = np.ones(n_ind[0], dtype=np.bool)
+		# self.c_z_mask[-1] = 0
+		#
+		# self.masks.extend([shared(self.c_z_mask)])
 
 		self.D = shared(
 			np.zeros(np.prod(n_hid[2]), dtype=floatX), name='D', borrow=True)
@@ -313,16 +317,17 @@ class ICLV(object):
 		self.masks.extend([shared(self.D_mask.flatten())])
 
 		# latent variable equation
-		x_h = T.nnet.sigmoid(T.dot(input[1], self.G_mat) + self.c_h)
+		x_h = T.nnet.sigmoid(T.dot(input[1], self.G_mat))
+		# x_h = T.tanh(T.dot(input[1], self.G_mat) + self.c_h)
+		# x_h = T.dot(input[1], self.G_mat) + self.c_h
 
 		# Indicator equation
-		ind = T.dot(x_h, self.A_mat) + self.c_z
+		ind = T.dot(x_h, self.A_mat)
 
 		# utility equation
-		v = (
-			T.dot(input[0], self.B)
-			+ T.dot(x_h, self.D_mat)
-			+ self.c_i)
+		v = (T.dot(input[0], self.B)
+			 + T.dot(x_h, self.D_mat)
+			 + self.c_i)
 
 		# estimate the indicator measurement model
 		self.p_z_given_x_h = T.clip(T.nnet.sigmoid(ind), 1e-8, 1.0 - 1e-8)
@@ -332,6 +337,12 @@ class ICLV(object):
 
 		# prediction given choices
 		self.y_pred = T.argmax(self.p_y_given_x, axis=-1)
+
+		# keep track of input
+		self.x_ng = input[0]
+		self.x_g = input[1]
+		self.av = av
+		self.y = output
 
 	def loglikelihood(self, y):
 		# loglikelihood sum

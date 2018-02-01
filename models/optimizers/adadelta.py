@@ -1,3 +1,4 @@
+from collections import OrderedDict
 import theano.tensor as T
 import numpy as np
 import theano
@@ -71,7 +72,7 @@ class adadelta(object):
         """
 
         one = T.constant(1)  # prevent upcasting of float32
-        updates = []
+        updates = OrderedDict()
 
         for n, (param, grad, mask) in enumerate(
                 zip(params, grads, self.masks)):
@@ -82,7 +83,7 @@ class adadelta(object):
 
             # update accu
             accu_new = rho * accu + (one - rho) * grad ** 2
-            updates.append((accu, accu_new))
+            updates[accu] = accu_new
 
             # compute parameter update, using the 'old' delta_accu
             adadelta = - (learning_rate
@@ -92,19 +93,17 @@ class adadelta(object):
 
             # update momentum
             v_new = self.momentum * v + adadelta
-            updates.append((v, v_new))
+            updates[v] = v_new
 
             update = self.momentum * v_new + adadelta
 
             select = np.arange(len(mask.eval()))[mask.eval()]
 
             # compute parameter update, using the 'old' delta_accu
-            updates.append((
-                param, T.inc_subtensor(param[select], update[select])
-            ))
+            updates[param] = T.inc_subtensor(param[select], update[select])
 
             # update delta_accu (as accu, but accumulating updates)
             delta_accu_new = rho * delta_accu + (one - rho) * update ** 2
-            updates.append((delta_accu, delta_accu_new))
+            updates[delta_accu] = delta_accu_new
 
         return updates

@@ -18,7 +18,7 @@ pd.options.display.max_rows = 999
 csvString = 'data/US_SP_Restructured.csv'
 
 
-def main():
+def run_mnl():
     """ Discrete choice model estimation with Theano
 
     Setup
@@ -37,9 +37,8 @@ def main():
     d_x_ng, d_x_g, d_y, avail, d_ind = extractdata(csvString)
     data_x_ng = shared(np.asarray(d_x_ng, dtype=floatX), borrow=True)
     data_x_g = shared(np.asarray(d_x_g, dtype=floatX), borrow=True)
-    data_y = T.cast(
-        shared(np.asarray(d_y-1, dtype=floatX), borrow=True),
-        'int32')
+    data_y = T.cast(shared(np.asarray(d_y-1, dtype=floatX), borrow=True),
+                    'int32')
     data_av = shared(np.asarray(avail, dtype=floatX), borrow=True)
 
     sz_n = d_x_g.shape[0]  # number of samples
@@ -240,4 +239,4 @@ def run_analytics(model, hessians):
 
 
 if __name__ == '__main__':
-    main()
+    run_mnl()

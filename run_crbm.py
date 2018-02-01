@@ -4,11 +4,11 @@ import numpy as np
 import pandas as pd
 import theano
 import theano.tensor as T
-from theano import shared, function
+from theano import shared, function, scan
 from theano.tensor.shared_randomstreams import RandomStreams
 
 from models import optimizers
-from models.rum import ICLV
+from models.crbm import CRBM
 from models.preprocessing import extractdata
 
 """ Custom options """
@@ -18,9 +18,8 @@ pd.options.display.max_rows = 999
 csvString = 'data/US_SP_Restructured.csv'
 
 
-def main():
-    """ Integrated Choice and Latent Variables model
-        estimation with Theano
+def run_crbm():
+    """ Discrete choice model estimation with Theano
 
     Setup
     -----
@@ -38,9 +37,8 @@ def main():
     d_x_ng, d_x_g, d_y, avail, d_ind = extractdata(csvString)
     data_x_ng = shared(np.asarray(d_x_ng, dtype=floatX), borrow=True)
     data_x_g = shared(np.asarray(d_x_g, dtype=floatX), borrow=True)
-    data_y = T.cast(
-        shared(np.asarray(d_y-1, dtype=floatX), borrow=True),
-        'int32')
+    data_y = T.cast(shared(np.asarray(d_y-1, dtype=floatX), borrow=True),
+                    'int32')
     data_av = shared(np.asarray(avail, dtype=floatX), borrow=True)
     data_ind = shared(np.asarray(d_ind, dtype=floatX), borrow=True)
 
@@ -52,6 +50,7 @@ def main():
 
     sz_minibatch = sz_n  # model hyperparameters
     learning_rate = 0.1
+    gen_rate = 1.0
     momentum = 0.9
 
     n_hidden = 3  # latent variable model parameters
@@ -66,22 +65,33 @@ def main():
     z = T.matrix('data_ind')
 
     # construct model
-    model = ICLV(
+    model = CRBM(
         sz_i, av,
-        input=[x_ng, x_g],
         n_in=[(sz_m,), (sz_k, n_hidden)],
-        n_hid=[(n_hidden,), (n_hidden, sz_z), (n_hidden, sz_i)],
+        n_hid=[(n_hidden,), (n_hidden, sz_i), (n_hidden, sz_z)],
         n_ind=(sz_z,),
-        output=y)
+        input=[x_ng, x_g],
+        output=y,
+        inds=z)
 
-    cost = - (model.loglikelihood(y) + model.cross_entropy(z))
+    cost, error, chain_end, updates = model.gibbs_sampling(
+        y, x_ng, x_g, av, alts=6, steps=25)
 
-    # calculate the gradients wrt to the loss function
-    grads = T.grad(cost=cost, wrt=model.params)
-    opt = optimizers.adadelta(model.params, model.masks)
+    grads = T.grad(cost=cost-model.loglikelihood(y), wrt=model.params,
+                   consider_constant=[chain_end])
 
-    updates = opt.updates(
-        model.params, grads, learning_rate, momentum)
+    cost2 = - (model.loglikelihood(y) + 0.1*model.cross_entropy(z))
+
+    grads2 = T.grad(cost=cost2, wrt=model.params2)
+
+    opt = optimizers.adadelta(model.params, model.masks, momentum)
+    opt2 = optimizers.adadelta(model.params2, model.masks2, momentum)
+    # opt = optimizers.sgd(model.params, model.masks)
+
+    updates.update(opt.updates(
+        model.params, grads, learning_rate))
+
+    updates2 = opt2.updates(model.params2, grads2, learning_rate)
 
     # null loglikelihood function
     fn_null = function(
@@ -91,16 +101,32 @@ def main():
             x_ng: data_x_ng,
             x_g: data_x_g,
             y: data_y,
-            av: data_av,
-            z: data_ind},
+            av: data_av},
         on_unused_input='ignore')
 
     # compile the theano functions
     fn_estimate = function(
         name='estimate',
         inputs=[index],
-        outputs=[model.loglikelihood(y), model.errors(y)],
+        outputs=[model.loglikelihood(y), cost],
         updates=updates,
+        givens={
+            x_ng: data_x_ng[
+                index*sz_minibatch: T.min(((index+1)*sz_minibatch, sz_n))],
+            x_g: data_x_g[
+                index*sz_minibatch: T.min(((index+1)*sz_minibatch, sz_n))],
+            y: data_y[
+                index*sz_minibatch: T.min(((index+1)*sz_minibatch, sz_n))],
+            av: data_av[
+                index*sz_minibatch: T.min(((index+1)*sz_minibatch, sz_n))]},
+        allow_input_downcast=True,
+        on_unused_input='ignore',)
+
+    fn_optimize = function(
+        name='optimize',
+        inputs=[index],
+        outputs=[model.loglikelihood(y)],
+        updates=updates2,
         givens={
             x_ng: data_x_ng[
                 index*sz_minibatch: T.min(((index+1)*sz_minibatch, sz_n))],
@@ -113,65 +139,114 @@ def main():
             z: data_ind[
                 index*sz_minibatch: T.min(((index+1)*sz_minibatch, sz_n))]},
         allow_input_downcast=True,
+        on_unused_input='ignore',)
+
+    fn_pred = function(
+        inputs=[],
+        outputs=model.y_pred,
+        givens={
+            x_ng: data_x_ng,
+            x_g: data_x_g,
+            y: data_y,
+            av: data_av},
         on_unused_input='ignore')
 
     """ Main estimation process loop """
     print('Begin estimation...')
 
     epoch = 0  # process loop parameters
-    sz_epoches = 9999
+    sz_epoches = 2000
     sz_batches = np.ceil(sz_n/sz_minibatch).astype(np.int32)
     done_looping = False
-    patience = 500
+    patience = 300
     patience_inc = 10
     best_loglikelihood = -np.inf
     null_Loglikelihood = fn_null()
     start_time = timeit.default_timer()
 
     while epoch < sz_epoches and done_looping is False:
-        epoch_error = []
+        epoch_cost = []
         epoch_loglikelihood = []
         for i in range(sz_batches):
-            (batch_loglikelihood, batch_error) = fn_estimate(i)
-            epoch_error.append(batch_error)
+            (batch_loglikelihood, batch_cost) = fn_estimate(i)
+            epoch_cost.append(batch_cost)
             epoch_loglikelihood.append(batch_loglikelihood)
 
-        this_loglikelihood = np.mean(epoch_loglikelihood)
-        print('@ iteration %d loglikelihood: %.3f'
-              % (epoch, this_loglikelihood))
+        this_loglikelihood = np.sum(epoch_loglikelihood)
+        this_cost = np.sum(epoch_cost)
+        print('@ iteration %d/%d loglikelihood: %.3f'
+              % (epoch, patience, this_loglikelihood))
+        print('               cost %.3f'
+              % this_cost)
+        print(fn_pred())
+        print(data_y.eval())
 
         if this_loglikelihood > best_loglikelihood:
-            if this_loglikelihood > 0.997 * best_loglikelihood:
+            if this_loglikelihood > 0.998 * best_loglikelihood:
                 patience += patience_inc
             best_loglikelihood = this_loglikelihood
             best_model = model
 
-        if epoch > patience:
+        if (epoch > patience or
+            this_loglikelihood < 1.01 * best_loglikelihood):
+            done_looping = True
+
+        epoch += 1
+
+    epoch = 0
+    patience = 900
+    done_looping = False
+    best_loglikelihood = -np.inf
+    # done_looping = True
+    while epoch < sz_epoches and done_looping is False:
+        epoch_cost = []
+        epoch_loglikelihood = []
+        for i in range(sz_batches):
+            (batch_loglikelihood) = fn_optimize(i)
+            epoch_loglikelihood.append(batch_loglikelihood)
+
+        this_loglikelihood = np.sum(epoch_loglikelihood)
+        this_cost = np.sum(epoch_cost)
+        print('@ iteration %d/%d loglikelihood: %.3f'
+              % (epoch, patience, this_loglikelihood))
+        print(fn_pred())
+        print(data_y.eval())
+
+        if this_loglikelihood > best_loglikelihood:
+            if this_loglikelihood > 0.999 * best_loglikelihood:
+                patience += patience_inc
+            best_loglikelihood = this_loglikelihood
+            best_model = model
+
+        if (epoch > patience or
+            this_loglikelihood < 1.01 * best_loglikelihood):
             done_looping = True
 
         epoch += 1
 
     final_Loglikelihood = best_loglikelihood
     rho_square = 1.-(final_Loglikelihood/null_Loglikelihood)
-    end_time = timeit.default_timer()
 
     with open('best_model.pkl', 'wb') as f:
         pickle.dump(best_model, f)
 
+    end_time = timeit.default_timer()
+
     """ Analytics and model statistics """
+    with open('best_model.pkl', 'rb') as f:
+        best_model = pickle.load(f)
+
     print('... solving Hessians')
     # hessian function
     fn_hessian = function(
         inputs=[best_model.x_ng, best_model.x_g, best_model.av],
         outputs=T.hessian(
-            cost=- (best_model.loglikelihood(y) + best_model.cross_entropy(z)),
-            wrt=best_model.params),
-        givens={y: data_y,
-                z: data_ind},
+            cost=-(best_model.loglikelihood(y)+best_model.cross_entropy(z)),
+            wrt=best_model.params2),
+        givens={y: data_y, z: data_ind},
         on_unused_input='ignore')
 
-    h = np.hstack([np.diagonal(mat) for mat in fn_hessian(
-        data_x_ng.eval(), data_x_g.eval(), data_av.eval())])
+    h = np.hstack([np.diagonal(mat) for mat in fn_hessian(data_x_ng.eval(), data_x_g.eval(), data_av.eval())])
     n_est_params = np.count_nonzero(h)
     aic = 2 * n_est_params - 2 * final_Loglikelihood
     bic = np.log(sz_n) * n_est_params - 2 * final_Loglikelihood
@@ -189,8 +264,6 @@ def main():
     print('BIC %.3f'
           % bic)
 
-    with open('best_model.pkl', 'rb') as f:
-        best_model = pickle.load(f)
 
     run_analytics(best_model, h, n_hidden)
 
@@ -198,7 +271,7 @@ def main():
 def run_analytics(model, hessians, n_latentVars):
     stderr = 2 / np.sqrt(hessians)
     betas = np.concatenate(
-        [param.get_value() for param in model.params], axis=0)
+        [param.get_value() for param in model.params2], axis=0)
     t_stat = betas/stderr
     data = np.vstack((betas, stderr, t_stat)).T
     columns = ['betas', 'serr', 't_stat']
@@ -244,7 +317,7 @@ def run_analytics(model, hessians, n_latentVars):
     latentConstants = []
     for n in np.arange(n_latentVars):
         latentNames.append('LV'+str(n))
-        # latentConstants.append('CONST_LV'+str(n))
+        latentConstants.append('CONST_LV'+str(n))
 
     indicators = [
         'Envrn_Car', 'Envrn_Train', 'Envrn_Bus', 'Envrn_Plane',
@@ -262,12 +335,6 @@ def run_analytics(model, hessians, n_latentVars):
         for ind in indicators:
             indicatorVariables.append(lv+'_'+ind)
 
-    indicatorConstants = [
-        'IND_Envrn_Car', 'IND_Envrn_Train', 'IND_Envrn_Bus', 'IND_Envrn_Plane',
-        'IND_Safe_Car', 'IND_Safe_Train', 'IND_Safe_Bus', 'IND_Safe_Plane',
-        'IND_Comf_Car', 'IND_Comf_Train', 'IND_Comf_Bus', 'IND_Comf_Plane'
-    ]
-
     for ASC in ASCs:
         paramNames.append(ASC)
 
@@ -280,19 +347,17 @@ def run_analytics(model, hessians, n_latentVars):
     # for name in latentConstants:
     #     paramNames.append(name)
 
-    for name in indicatorVariables:
-        paramNames.append(name)
-
-    # for name in indicatorConstants:
-    #     paramNames.append(name)
 
     for name in latentNames:
         for choice in choices:
             paramNames.append(name+'_'+choice)
+
+    for name in indicatorVariables:
+        paramNames.append(name)
 
     df = pd.DataFrame(data, paramNames, columns)
     print(df)
 
 
 if __name__ == '__main__':
-    main()
+    run_crbm()
