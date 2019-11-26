@@ -1,13 +1,6 @@
 # folders
 documents/
 
-# libreoffice files
-.~lock.*
-*.ods
-*.odt
-*.xlsx
-*.docx
-
 # SPSS files
 *.sps
 *.SAV
