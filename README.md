@@ -14,6 +14,8 @@ framework.
 
 SP and RP survey conducted for a new train service between Montreal and New York called Train Hotel.
 
+Dataset Tech report: [Sp_TrainHotel_Draft 5_Oct 27.2016.pdf](https://github.com/LiTrans/ICLV-RBM/blob/master/Sp_TrainHotel_Draft%205_Oct%2027.2016.pdf)
+
 ## Getting Started
 
 ### Prerequisites
