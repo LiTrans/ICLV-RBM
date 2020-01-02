@@ -2,13 +2,14 @@
 
 One Paragraph of project description goes here
 
+## Dataset
+
+SP and RP survey conducted for a new train service between Montreal and New York called Train Hotel.
+
 ## Getting Started
 
 These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. See deployment for notes on how to deploy the project on a live system.
 
-# Dataset
-
-SP and RP survey conducted for a new train service between Montreal and New York called Train Hotel.
 
 ### Prerequisites
 
