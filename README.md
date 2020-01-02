@@ -4,6 +4,7 @@
     + [Prerequisites](#prerequisites)
     + [Installation](#installation)
       - [Ubuntu (Unix)](#ubuntu--unix-)
+      - [Windows](#windows)
   * [Model estimation](#model-estimation)
   * [Contributing](#contributing)
   * [Versioning](#versioning)
@@ -41,7 +42,7 @@ Python 3.5+ (with pip3), Numpy, Pandas, Theano
 
 These are the installation instructions. Consider them work-in-progress and feel free to make suggestions for improvement.
 
-1. Clone or download the git repository and navigate to the project folder
+- Clone or download the git repository and navigate to the project folder
 
 #### Ubuntu (Unix)
 
@@ -56,11 +57,33 @@ python3 --version
 Install requirements with pip with `--user` option
 
 ```
-cd /root-project-folder
+cd project-root-folder/
 pip3 install --user -r requirements.txt
 ```
 
 The above command also installs the latest Theano from github.com/Theano/Theano
+
+#### Windows
+
+Two options:
+- Install Python directly ([instructions](https://wiki.python.org/moin/BeginnersGuide/Download))
+- By Anaconda ([instructions](https://www.anaconda.com/distribution/))
+
+verify Python is installed correctly:
+
+Open *cmd* and run:
+
+```
+C:\>python
+> Python 3.X.X. ...
+```
+
+Install project requirements
+
+```
+cd project-root-folder/
+pip install -r requirements.txt
+```
 
 ## Model estimation
 
