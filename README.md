@@ -32,13 +32,13 @@ This command installs Theano from github.com/Theano/Theano
 ## Model estimation
 
 To run MNL model:
-* python3 run_mnl.py
+``` python3 run_mnl.py ```
 
 To run MXL model:
-* python3 run_mxl.py
+```python3 run_mxl.py```
 
 To run ICLV model:
-* python3 run_iclv.py
+```python3 run_iclv.py```
 
 ## Contributing
 
