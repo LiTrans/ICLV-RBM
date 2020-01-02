@@ -1,3 +1,16 @@
+- [ICLV-RBM model estimation](#iclv-rbm-model-estimation)
+  * [Dataset](#dataset)
+  * [Getting Started](#getting-started)
+    + [Prerequisites](#prerequisites)
+    + [Installation](#installation)
+      - [Ubuntu (Unix)](#ubuntu--unix-)
+  * [Model estimation](#model-estimation)
+  * [Contributing](#contributing)
+  * [Versioning](#versioning)
+  * [Authors](#authors)
+  * [License](#license)
+  * [Acknowledgments](#acknowledgments)
+
 # ICLV-RBM model estimation
 
 Modelling Latent Travel Behaviour Characteristics with Generative Machine Learning
