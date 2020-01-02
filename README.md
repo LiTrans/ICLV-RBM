@@ -1,6 +1,14 @@
 # ICLV-RBM model estimation
 
-One Paragraph of project description goes here
+Modelling Latent Travel Behaviour Characteristics with Generative Machine Learning
+
+We implement an information-
+theoretic approach to travel behaviour analysis by introducing
+a generative modelling framework to identify informative latent
+characteristics in travel decision making. It involves developing
+a joint tri-partite Bayesian graphical network model using a
+Restricted Boltzmann Machine (RBM) generative modelling
+framework.
 
 ## Dataset
 
@@ -8,27 +16,20 @@ SP and RP survey conducted for a new train service between Montreal and New York
 
 ## Getting Started
 
-These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. See deployment for notes on how to deploy the project on a live system.
-
-
 ### Prerequisites
 
-Python 3.5+, Numpy, Pandas
+Python 3.5+ (with pip3), Numpy, Pandas, Theano
+
+navigate to project folder
 
 ```
 >>> apt-get install python3-dev pip3
->>> pip3 install numpy pandas
+>>> pip3 install -r requirements.txt
 ```
 
-Theano
+This command installs Theano from github.com/Theano/Theano
 
-```
->>> git clone https://github.com/Theano/Theano.git
->>> cd Theano
->>> pip3 install .
-```
-
-## Deployment
+## Model estimation
 
 To run MNL model:
 * python3 run_mnl.py
@@ -45,7 +46,7 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduc
 
 ## Versioning
 
-TODO
+0.1 Initial version
 
 ## Authors
 
