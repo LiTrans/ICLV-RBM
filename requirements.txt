@@ -1,0 +1,4 @@
+pandas
+numpy
+pickle
+git+git://github.com/Theano/Theano.git
