@@ -87,6 +87,8 @@ pip install -r requirements.txt
 
 ## Model estimation
 
+From the project folder,
+
 To run MNL model:
 ``` python3 run_mnl.py ```
 
@@ -98,7 +100,7 @@ To run ICLV model:
 
 ## Contributing
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct, and the process for submitting pull requests to us.
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on contributing.
 
 ## Versioning
 
